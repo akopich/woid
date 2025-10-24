@@ -158,30 +158,38 @@ constexpr auto setRange = [](auto* bench) -> void {
     bench->RangeMultiplier(2)->Range(1,N);
 };
 
-BENCHMARK(benchVectorConstructionInt<AnyOnePtr<8, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<AnyOnePtrCpy<8, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<AnyTwoPtrs<8, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<AnyThreePtrs<8, true>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<AnyOnePtr<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<AnyOnePtrCpy<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<AnyTwoPtrs<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<AnyThreePtrs<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<AnyOnePtr<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<AnyOnePtrCpy<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<AnyTwoPtrs<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<AnyThreePtrs<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt<std::any>)->Apply(setRange);
 
-BENCHMARK(benchVectorConstructionInt128<AnyOnePtr<8, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<AnyOnePtr<16, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<AnyTwoPtrs<8, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<AnyTwoPtrs<16, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<AnyOnePtrCpy<8, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<AnyOnePtrCpy<16, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<AnyThreePtrs<8, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<AnyThreePtrs<16, true>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt128<AnyOnePtr<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt128<AnyOnePtr<16, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt128<AnyTwoPtrs<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt128<AnyTwoPtrs<16, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt128<AnyOnePtrCpy<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt128<AnyOnePtrCpy<16, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt128<AnyThreePtrs<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt128<AnyThreePtrs<16, ExceptionGuarantee::NONE>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt128<std::any>)->Apply(setRange);
 
-BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtr<8, false>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyTwoPtrs<8, false>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtr<8, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyTwoPtrs<8, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtrCpy<8, false>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyThreePtrs<8, false>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtrCpy<8, true>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyThreePtrs<8, true>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtr<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtr<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtr<8, ExceptionGuarantee::STRONG>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyTwoPtrs<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyTwoPtrs<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyTwoPtrs<8, ExceptionGuarantee::STRONG>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtrCpy<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtrCpy<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtrCpy<8, ExceptionGuarantee::STRONG>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyThreePtrs<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyThreePtrs<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<AnyThreePtrs<8, ExceptionGuarantee::STRONG>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionThrowInt<std::any>)->Apply(setRange);
 
 //BENCHMARK(benchCtorInt<AnyOnePtr<8>>)->MinTime(kMinTime);

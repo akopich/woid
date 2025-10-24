@@ -13,6 +13,11 @@
         _Pragma("GCC diagnostic pop")
 
 namespace woid {
+
+enum class ExceptionGuarantee {
+   NONE, BASIC, STRONG
+};
+
 namespace detail {
 
 
@@ -192,12 +197,16 @@ T star(Void* p) {
     return static_cast<T>(*static_cast<RetainConstPtr<Self, std::remove_reference_t<T>>>(p));
 }
 
-template <typename MemManager, auto mmStaticMaker, auto mmDynamicMaker, std::size_t Size, bool NonThrowMovable, bool IsMoveOnly> requires(Size >= sizeof(void*))
+template <typename MemManager, auto mmStaticMaker, auto mmDynamicMaker, std::size_t Size, ExceptionGuarantee Eg, bool IsMoveOnly> requires(Size >= sizeof(void*))
 class StaticStorage {
     private: 
         template <typename T> 
-        inline static constexpr bool kIsBig = sizeof(T) > Size || alignof(T) > alignof(void*) || (NonThrowMovable && !std::is_nothrow_move_constructible_v<T>);
+        inline static constexpr bool kIsBig = sizeof(T) > Size 
+           || alignof(T) > alignof(void*) 
+           || (Eg == ExceptionGuarantee::STRONG && !std::is_nothrow_move_constructible_v<T>);
     public:
+        inline static constexpr auto exceptionGuarantee = Eg;
+
         template <typename T> 
         explicit StaticStorage(T&& t) : StaticStorage(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
 
@@ -222,14 +231,15 @@ class StaticStorage {
             std::swap(*this, tmp);
             return *this;
         }
-        StaticStorage(StaticStorage&& other) noexcept(NonThrowMovable): mm(other.mm) {
+        StaticStorage(StaticStorage&& other) noexcept(Eg != ExceptionGuarantee::BASIC): mm(other.mm) {
             mm->move(other.ptr(), ptr());
             other.mm = nullptr;
         }
-        StaticStorage& operator=(StaticStorage&& other) noexcept(NonThrowMovable) {
+        StaticStorage& operator=(StaticStorage&& other) noexcept(Eg != ExceptionGuarantee::BASIC) {
             if (mm != nullptr)
                 mm->del(ptr());
-            mm = nullptr;
+            if constexpr (Eg == ExceptionGuarantee::BASIC)
+                mm = nullptr;
             other.mm->move(other.ptr(), ptr());
             mm = other.mm;
             other.mm = nullptr;
@@ -284,6 +294,8 @@ class DynamicStorage {
 private:
     std::unique_ptr<void, Deleter> storage;
 public:
+    inline static constexpr auto exceptionGuarantee = ExceptionGuarantee::STRONG;
+
     constexpr DynamicStorage(): storage(nullptr) {}
 
     DynamicStorage(const DynamicStorage&) = delete;
@@ -292,7 +304,7 @@ public:
     template <typename T, typename TnoRef = std::remove_cvref_t<T>>
     DynamicStorage(T&& t): storage{new TnoRef(std::forward<T>(t)), Deleter{kTypeTag<TnoRef>}} {}
 
-    DynamicStorage& operator=(DynamicStorage&& t) {
+    DynamicStorage& operator=(DynamicStorage&& t) noexcept {
         storage = std::move(t.storage);
         return *this;
     }
@@ -316,17 +328,17 @@ decltype(auto) any_cast(Storage&& s) {
 }
 }
 
-template <size_t Size, bool NonThrowMovable = false>
-using AnyOnePtr = detail::StaticStorage<detail::MemManagerOnePtr, detail::mkMemManagerOnePtrStatic, detail::mkMemManagerOnePtrDynamic, Size, NonThrowMovable, /*IsMoveOnly=*/ true>;
+template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
+using AnyOnePtr = detail::StaticStorage<detail::MemManagerOnePtr, detail::mkMemManagerOnePtrStatic, detail::mkMemManagerOnePtrDynamic, Size, Eg, /*IsMoveOnly=*/ true>;
 
 
-template <size_t Size, bool NonThrowMovable = false>
-using AnyTwoPtrs = detail::StaticStorage<detail::MemManagerTwoPtrs, detail::mkMemManagerTwoPtrsStatic, detail::mkMemManagerTwoPtrsDynamic, Size, NonThrowMovable, /*IsMoveOnly=*/ true>;
+template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
+using AnyTwoPtrs = detail::StaticStorage<detail::MemManagerTwoPtrs, detail::mkMemManagerTwoPtrsStatic, detail::mkMemManagerTwoPtrsDynamic, Size, Eg, /*IsMoveOnly=*/ true>;
 
-template <size_t Size, bool NonThrowMovable = false>
-using AnyThreePtrs = detail::StaticStorage<detail::MemManagerThreePtrs, detail::mkMemManagerThreePtrsStatic, detail::mkMemManagerThreePtrsDynamic, Size, NonThrowMovable, /*IsMoveOnly=*/ false>;
+template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
+using AnyThreePtrs = detail::StaticStorage<detail::MemManagerThreePtrs, detail::mkMemManagerThreePtrsStatic, detail::mkMemManagerThreePtrsDynamic, Size, Eg, /*IsMoveOnly=*/ false>;
 
-template <size_t Size, bool NonThrowMovable = false>
-using AnyOnePtrCpy = detail::StaticStorage<detail::MemManagerOnePtrCpy, detail::mkMemManagerOnePtrCpyStatic, detail::mkMemManagerOnePtrCpyDynamic, Size, NonThrowMovable, /*IsMoveOnly=*/ false>;
+template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
+using AnyOnePtrCpy = detail::StaticStorage<detail::MemManagerOnePtrCpy, detail::mkMemManagerOnePtrCpyStatic, detail::mkMemManagerOnePtrCpyDynamic, Size, Eg, /*IsMoveOnly=*/ false>;
 
 }
