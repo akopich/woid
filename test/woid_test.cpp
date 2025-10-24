@@ -2,12 +2,11 @@
 
 #define BOOST_TEST_MODULE AnyTest
 
-#include <boost/test/included/unit_test.hpp>
-#include <boost/test/data/test_case.hpp>
-#include <boost/test/data/monomorphic.hpp>
 #include <boost/hana.hpp>
 #include <boost/hana/fwd/filter.hpp>
-
+#include <boost/test/data/monomorphic.hpp>
+#include <boost/test/data/test_case.hpp>
+#include <boost/test/included/unit_test.hpp>
 
 namespace hana = boost::hana;
 using namespace woid;
@@ -17,14 +16,15 @@ struct S {
     alignas(AlignAs) std::array<char, 15> payload;
     int i;
     inline static int cnt = 0;
-    S(int i): i(i) {  cnt++; }
-    S(S&& other): i(other.i) { cnt++; }
-    S& operator=(S&& other) { i = other.i; return *this; }
+    S(int i) : i(i) { cnt++; }
+    S(S&& other) : i(other.i) { cnt++; }
+    S& operator=(S&& other) {
+        i = other.i;
+        return *this;
+    }
     S(const S&) = delete;
     S& operator=(const S&) = delete;
-    ~S() {
-        cnt--;
-    }
+    ~S() { cnt--; }
 };
 
 template <typename AlignAs>
@@ -32,25 +32,35 @@ struct C {
     alignas(AlignAs) std::array<char, 15> payload;
     int i;
     inline static int cnt = 0;
-    C(int i): i(i) {  cnt++; }
-    C(C&& other): i(other.i) { cnt++; }
-    C& operator=(C&& other) { i = other.i;  return *this; }
-    C(const C& other) { i = other.i; cnt++; }
-    C& operator=(const C& other )  { i = other.i;  return *this; }
-    ~C() {
-        cnt--;
+    C(int i) : i(i) { cnt++; }
+    C(C&& other) : i(other.i) { cnt++; }
+    C& operator=(C&& other) {
+        i = other.i;
+        return *this;
     }
+    C(const C& other) {
+        i = other.i;
+        cnt++;
+    }
+    C& operator=(const C& other) {
+        i = other.i;
+        return *this;
+    }
+    ~C() { cnt--; }
 };
 
 inline constexpr int kInt = 13;
 
-constexpr auto IsExcptSafe = hana::tuple_c<ExceptionGuarantee, ExceptionGuarantee::NONE, ExceptionGuarantee::BASIC, ExceptionGuarantee::STRONG>;
-constexpr auto StaticStorageSizes = hana::tuple_c<int, 8, 80>; 
+constexpr auto IsExcptSafe = hana::tuple_c<ExceptionGuarantee,
+                                           ExceptionGuarantee::NONE,
+                                           ExceptionGuarantee::BASIC,
+                                           ExceptionGuarantee::STRONG>;
+constexpr auto StaticStorageSizes = hana::tuple_c<int, 8, 80>;
 
 template <typename T>
-struct Test ;
+struct Test;
 
-template <template <auto ...> typename T>
+template <template <auto...> typename T>
 constexpr auto mkAny = [](auto T_pair) {
     constexpr int Size = hana::at_c<0>(T_pair).value;
     constexpr ExceptionGuarantee IsSafe = hana::at_c<1>(T_pair).value;
@@ -58,19 +68,25 @@ constexpr auto mkAny = [](auto T_pair) {
 };
 
 auto make_instantiations = [](auto StorageSizes, auto ExcptSafe, auto Transformer) {
-    return hana::transform(hana::cartesian_product(hana::make_tuple(StorageSizes, ExcptSafe)), Transformer);
+    return hana::transform(hana::cartesian_product(hana::make_tuple(StorageSizes, ExcptSafe)),
+                           Transformer);
 };
 
-constexpr auto AnyOnePtrsInsts = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyOnePtr>);
-constexpr auto AnyTwoPtrsInsts = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyTwoPtrs>);
-constexpr auto AnyThreePtrsInsts = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyThreePtrs>);
-constexpr auto AnyOnePtrCpyInsts = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyOnePtrCpy>);
+constexpr auto AnyOnePtrsInsts =
+    make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyOnePtr>);
+constexpr auto AnyTwoPtrsInsts =
+    make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyTwoPtrs>);
+constexpr auto AnyThreePtrsInsts =
+    make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyThreePtrs>);
+constexpr auto AnyOnePtrCpyInsts =
+    make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyOnePtrCpy>);
 
-constexpr auto MoveOnlyStorageTypes = hana::append(hana::concat(AnyOnePtrsInsts, AnyTwoPtrsInsts), hana::type_c<detail::DynamicStorage>);
+constexpr auto MoveOnlyStorageTypes = hana::append(hana::concat(AnyOnePtrsInsts, AnyTwoPtrsInsts),
+                                                   hana::type_c<detail::DynamicStorage>);
 constexpr auto CopyStorageTypes = hana::concat(AnyThreePtrsInsts, AnyOnePtrCpyInsts);
 
-static_assert(alignof(__int128) > alignof(void*)); //make sure int128 has big alignment
-static_assert(alignof(std::int32_t) < alignof(void*)); //make sure int32 has small alignment
+static_assert(alignof(__int128) > alignof(void*));     // make sure int128 has big alignment
+static_assert(alignof(std::int32_t) < alignof(void*)); // make sure int32 has small alignment
 constexpr auto IntTypes = hana::tuple_t<std::int32_t, __int128>;
 
 constexpr auto MoveOnlyTypes = hana::transform(IntTypes, hana::template_<S>);
@@ -83,16 +99,19 @@ struct TestCase {
     using Value = Value_;
 };
 
-template <template <typename ...> typename Tmpl >
+template <template <typename...> typename Tmpl>
 constexpr auto mk = [](auto T) { return hana::unpack(T, hana::template_<Tmpl>); };
 
 constexpr static auto mkTestCases(auto StorageTypes, auto StoredTypes) {
-    return hana::transform(hana::cartesian_product(hana::make_tuple(StorageTypes, StoredTypes)), mk<TestCase>);
+    return hana::transform(hana::cartesian_product(hana::make_tuple(StorageTypes, StoredTypes)),
+                           mk<TestCase>);
 }
 
 constexpr auto CopyTypesCopyStorageTestCasesHana = mkTestCases(CopyStorageTypes, CopyTypes);
-constexpr auto MoveTestCasesHana = hana::concat(mkTestCases(MoveOnlyStorageTypes, ValueTypes), CopyTypesCopyStorageTestCasesHana);
-constexpr auto CopyTypesTestCasesHana = hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCasesHana);
+constexpr auto MoveTestCasesHana =
+    hana::concat(mkTestCases(MoveOnlyStorageTypes, ValueTypes), CopyTypesCopyStorageTestCasesHana);
+constexpr auto CopyTypesTestCasesHana =
+    hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCasesHana);
 
 template <auto HanaTuple>
 using AsTuple = decltype(hana::unpack(HanaTuple, hana::template_<std::tuple>))::type;
@@ -199,7 +218,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(canSwapHeterogeneously, T, MoveTestCases) {
             BOOST_CHECK(any_cast<Value&>(otherStorage).i == kInt);
             BOOST_CHECK(any_cast<int>(storage) == 42);
         }
-}
+    }
 
     BOOST_CHECK(Value::cnt == 0);
 }
@@ -276,18 +295,15 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(canCopyAssign, T, CopyTypesCopyStorageTestCases) {
 
 #if defined(__cpp_exceptions)
 
-
 class Bomb {
-public:
+  public:
     int i;
     std::array<char, 15> payload;
     inline static int cnt = 0;
     Bomb(int i) : i(i) { cnt++; }
     ~Bomb() { cnt--; }
 
-    Bomb(const Bomb&) {
-        throw std::runtime_error("Copy construction failed.");
-    }
+    Bomb(const Bomb&) { throw std::runtime_error("Copy construction failed."); }
 
     Bomb& operator=(const Bomb& other) {
         if (this != &other) {
@@ -296,9 +312,7 @@ public:
         return *this;
     }
 
-    Bomb(Bomb&&) noexcept(false) {
-        throw std::runtime_error("Move construction failed.");
-    }
+    Bomb(Bomb&&) noexcept(false) { throw std::runtime_error("Move construction failed."); }
 
     Bomb& operator=(Bomb&& other) noexcept(false) {
         if (this != &other) {
@@ -311,9 +325,9 @@ public:
 template <ExceptionGuarantee eg>
 constexpr auto filterByEg(auto storages) {
     return hana::filter(storages, [&](auto testCase) {
-             using Storage = decltype(testCase)::type;
-             return hana::bool_c<Storage::exceptionGuarantee == eg>;
-        });
+        using Storage = decltype(testCase)::type;
+        return hana::bool_c < Storage::exceptionGuarantee == eg > ;
+    });
 }
 
 constexpr auto BasicEgMovableStorages = filterByEg<ExceptionGuarantee::BASIC>(AllStorages);
@@ -325,11 +339,11 @@ constexpr auto StorngEgCopyableStorages = filterByEg<ExceptionGuarantee::STRONG>
 BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnMoveWeak, Storage, AsTuple<BasicEgMovableStorages>) {
     Bomb::cnt = 0;
     {
-        Storage first{std::in_place_type<Bomb>, kInt}; 
-        Storage other{std::in_place_type<Bomb>, 123}; 
+        Storage first{std::in_place_type<Bomb>, kInt};
+        Storage other{std::in_place_type<Bomb>, 123};
         try {
             other = std::move(first);
-        } catch(...) {
+        } catch (...) {
         }
     }
     BOOST_CHECK(Bomb::cnt == 0);
@@ -339,8 +353,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnMoveStrong, Storage, AsTuple<StrongEgMovabl
     Bomb::cnt = 0;
     {
         // under strong exception guarantees the container's move-assignment is noexcept
-        Storage first{std::in_place_type<Bomb>, kInt}; 
-        Storage other{std::in_place_type<Bomb>, 123}; 
+        Storage first{std::in_place_type<Bomb>, kInt};
+        Storage other{std::in_place_type<Bomb>, 123};
         other = std::move(first);
         BOOST_CHECK(any_cast<Bomb&>(other).i == kInt);
     }
@@ -350,11 +364,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnMoveStrong, Storage, AsTuple<StrongEgMovabl
 BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnCopyWeak, Storage, AsTuple<BasicEgCopyableStorages>) {
     Bomb::cnt = 0;
     {
-        Storage first{std::in_place_type<Bomb>, kInt}; 
-        Storage other{std::in_place_type<Bomb>, 123}; 
+        Storage first{std::in_place_type<Bomb>, kInt};
+        Storage other{std::in_place_type<Bomb>, 123};
         try {
             other = first;
-        } catch(...) {
+        } catch (...) {
         }
         BOOST_CHECK(any_cast<Bomb&>(first).i == kInt);
     }
@@ -364,11 +378,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnCopyWeak, Storage, AsTuple<BasicEgCopyableS
 BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnCopyStrong, Storage, AsTuple<StorngEgCopyableStorages>) {
     Bomb::cnt = 0;
     {
-        Storage first{std::in_place_type<Bomb>, kInt}; 
-        Storage other{std::in_place_type<Bomb>, 123}; 
+        Storage first{std::in_place_type<Bomb>, kInt};
+        Storage other{std::in_place_type<Bomb>, 123};
         try {
             other = first;
-        } catch(...) {
+        } catch (...) {
         }
         BOOST_CHECK(any_cast<Bomb&>(first).i == kInt);
         BOOST_CHECK(any_cast<Bomb&>(other).i == 123);
@@ -378,6 +392,3 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnCopyStrong, Storage, AsTuple<StorngEgCopyab
 }
 
 #endif
-
-
-
