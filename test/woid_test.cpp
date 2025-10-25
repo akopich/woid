@@ -1,7 +1,6 @@
-#include "woid.hpp"
-
 #define BOOST_TEST_MODULE AnyTest
 
+#include "woid.hpp"
 #include <boost/hana.hpp>
 #include <boost/hana/fwd/filter.hpp>
 #include <boost/test/data/monomorphic.hpp>
@@ -56,9 +55,6 @@ constexpr auto IsExcptSafe = hana::tuple_c<ExceptionGuarantee,
                                            ExceptionGuarantee::BASIC,
                                            ExceptionGuarantee::STRONG>;
 constexpr auto StaticStorageSizes = hana::tuple_c<int, 8, 80>;
-
-template <typename T>
-struct Test;
 
 template <template <auto...> typename T>
 constexpr auto mkAny = [](auto T_pair) {
