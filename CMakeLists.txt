@@ -4,8 +4,19 @@ project(woid)
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_C_COMPILER clang)
-set(CMAKE_CXX_COMPILER clang++)
+option(CC_SELECTION "Select the compiler family (e.g., clang or gcc)." "clang")
+
+if (CC_SELECTION STREQUAL "clang")
+    set(CMAKE_C_COMPILER "clang")
+    set(CMAKE_CXX_COMPILER "clang++")
+    message(STATUS "Using Clang compiler family.")
+elseif (CC_SELECTION STREQUAL "gcc")
+    set(CMAKE_C_COMPILER "gcc")
+    set(CMAKE_CXX_COMPILER "g++")
+    message(STATUS "Using GCC compiler family.")
+else()
+    message(FATAL_ERROR "Unknown compiler selection: ${CC_SELECTION}. Use 'clang' or 'gcc'.")
+endif()
 
 add_compile_options("-Wall" "-Wextra" "-pedantic" "-fno-rtti")
 
