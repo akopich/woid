@@ -3,9 +3,8 @@
 #include "woid.hpp"
 #include <boost/hana.hpp>
 #include <boost/hana/fwd/filter.hpp>
-#include <boost/test/data/monomorphic.hpp>
-#include <boost/test/data/test_case.hpp>
-#include <boost/test/included/unit_test.hpp>
+#include <gtest/gtest-typed-test.h>
+#include <gtest/gtest.h>
 
 namespace hana = boost::hana;
 using namespace woid;
@@ -103,190 +102,200 @@ constexpr static auto mkTestCases(auto StorageTypes, auto StoredTypes) {
                            mk<TestCase>);
 }
 
-constexpr auto CopyTypesCopyStorageTestCasesHana = mkTestCases(CopyStorageTypes, CopyTypes);
-constexpr auto MoveTestCasesHana =
-    hana::concat(mkTestCases(MoveOnlyStorageTypes, ValueTypes), CopyTypesCopyStorageTestCasesHana);
-constexpr auto CopyTypesTestCasesHana =
-    hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCasesHana);
+constexpr auto CopyTypesCopyStorageTestCases = mkTestCases(CopyStorageTypes, CopyTypes);
+constexpr auto MoveTestCases =
+    hana::concat(mkTestCases(MoveOnlyStorageTypes, ValueTypes), CopyTypesCopyStorageTestCases);
+constexpr auto CopyTypesTestCases =
+    hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCases);
 
 template <auto HanaTuple>
-using AsTuple = decltype(hana::unpack(HanaTuple, hana::template_<std::tuple>))::type;
+using AsTuple = decltype(hana::unpack(HanaTuple, hana::template_<testing::Types>))::type;
 
-using MoveTestCases = AsTuple<MoveTestCasesHana>;
-using CopyTypesTestCases = AsTuple<CopyTypesTestCasesHana>;
 constexpr auto AllStorages = hana::concat(MoveOnlyStorageTypes, CopyStorageTypes);
-using StorageTypes = AsTuple<AllStorages>;
-using CopyTypesCopyStorageTestCases = AsTuple<CopyTypesCopyStorageTestCasesHana>;
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canInstantiateFromRef, T, CopyTypesTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+template <typename Value>
+struct ValueCntNuller : testing::Test {
+    ValueCntNuller() { Value::cnt = 0; }
+    ~ValueCntNuller() { Value::cnt = 0; }
+};
+
+template <typename T>
+struct BaseTestCase : ValueCntNuller<typename T::Value> {};
+
+template <typename T>
+struct MoveTestCase : testing::Test {};
+
+TYPED_TEST_SUITE(MoveTestCase, AsTuple<MoveTestCases>);
+
+template <typename T>
+struct CopyTypesTestCase : BaseTestCase<T> {};
+
+TYPED_TEST_SUITE(CopyTypesTestCase, AsTuple<CopyTypesTestCases>);
+
+template <typename T>
+struct StorageType : testing::Test {};
+TYPED_TEST_SUITE(StorageType, AsTuple<AllStorages>);
+
+template <typename T>
+struct CopyTypesCopyStorageTestCase : BaseTestCase<T> {};
+TYPED_TEST_SUITE(CopyTypesCopyStorageTestCase, AsTuple<CopyTypesCopyStorageTestCases>);
+
+TYPED_TEST(CopyTypesTestCase, canInstantiateFromRef) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Storage storage(static_cast<const Value&>(kInt));
-        BOOST_CHECK(any_cast<Value&>(storage).i == kInt);
+        ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
     }
-    BOOST_CHECK(T::Value::cnt == 0);
+    ASSERT_EQ(TypeParam::Value::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canInstantiateFromRefRef, T, MoveTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+TYPED_TEST(MoveTestCase, canInstantiateFromRefRef) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Value v{kInt};
         Storage storage(std::move(v));
-        BOOST_CHECK(any_cast<Value&>(storage).i == kInt);
+        ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
     }
-    BOOST_CHECK(T::Value::cnt == 0);
+    ASSERT_EQ(TypeParam::Value::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canInstantiateInPlaceAndMove, T, MoveTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+TYPED_TEST(MoveTestCase, canInstantiateInPlaceAndMove) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Storage storage(std::in_place_type<Value>, kInt);
-        BOOST_CHECK(any_cast<Value&>(storage).i == kInt);
+        ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
         Storage otherStorage = std::move(storage);
-        BOOST_CHECK(any_cast<Value&>(otherStorage).i == kInt);
+        ASSERT_EQ(any_cast<Value&>(otherStorage).i, kInt);
     }
-    BOOST_CHECK(T::Value::cnt == 0);
+    ASSERT_EQ(TypeParam::Value::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canInstantiateAndMove, T, MoveTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+TYPED_TEST(MoveTestCase, canInstantiateAndMove) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Storage storage(Value{kInt});
         {
             Storage otherStorage = std::move(storage);
-            BOOST_CHECK(any_cast<Value&>(otherStorage).i == kInt);
+            ASSERT_EQ(any_cast<Value&>(otherStorage).i, kInt);
         }
     }
 
-    BOOST_CHECK(Value::cnt == 0);
+    ASSERT_EQ(Value::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canMoveAssign, T, MoveTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+TYPED_TEST(MoveTestCase, canMoveAssign) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Storage storage(Value{kInt});
         {
             Storage otherStorage(Value{42});
             otherStorage = std::move(storage);
-            BOOST_CHECK(any_cast<Value&>(otherStorage).i == kInt);
+            ASSERT_EQ(any_cast<Value&>(otherStorage).i, kInt);
         }
     }
-
-    BOOST_CHECK(Value::cnt == 0);
+    ASSERT_EQ(Value::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canSwap, T, MoveTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+TYPED_TEST(MoveTestCase, canSwap) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Storage storage(Value{kInt});
         {
             Storage otherStorage(Value{42});
             std::swap(storage, otherStorage);
-            BOOST_CHECK(any_cast<Value&>(otherStorage).i == kInt);
-            BOOST_CHECK(any_cast<Value&>(storage).i == 42);
+            ASSERT_EQ(any_cast<Value&>(otherStorage).i, kInt);
+            ASSERT_EQ(any_cast<Value&>(storage).i, 42);
         }
     }
-
-    BOOST_CHECK(Value::cnt == 0);
+    ASSERT_EQ(Value::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canSwapHeterogeneously, T, MoveTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+TYPED_TEST(MoveTestCase, canSwapHeterogeneously) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Storage storage(Value{kInt});
         {
             Storage otherStorage(int{42});
             std::swap(storage, otherStorage);
-            BOOST_CHECK(any_cast<Value&>(otherStorage).i == kInt);
-            BOOST_CHECK(any_cast<int>(storage) == 42);
+            ASSERT_EQ(any_cast<Value&>(otherStorage).i, kInt);
+            ASSERT_EQ(any_cast<int>(storage), 42);
         }
     }
-
-    BOOST_CHECK(Value::cnt == 0);
+    ASSERT_EQ(Value::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canGetByValue, Storage, StorageTypes) {
-    using Value = int;
-    Storage storage(Value{kInt});
-    auto value = any_cast<Value>(storage);
-    BOOST_CHECK(value == kInt);
-    value++;
-    BOOST_CHECK(value == kInt + 1);
-    BOOST_CHECK(any_cast<Value>(storage) == kInt);
-}
-
-BOOST_AUTO_TEST_CASE_TEMPLATE(canGetByRef, T, MoveTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+TYPED_TEST(MoveTestCase, canGetByRef) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Storage storage(Value{kInt});
         auto& valueRef = any_cast<Value&>(storage);
-        BOOST_CHECK(valueRef.i == kInt);
+        ASSERT_EQ(valueRef.i, kInt);
         valueRef.i++;
-        BOOST_CHECK(valueRef.i == kInt + 1);
-        BOOST_CHECK(any_cast<Value&>(storage).i == kInt + 1);
+        ASSERT_EQ(valueRef.i, kInt + 1);
+        ASSERT_EQ(any_cast<Value&>(storage).i, kInt + 1);
     }
-    BOOST_CHECK(Value::cnt == 0);
+    ASSERT_EQ(Value::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canGetByRefRef, T, MoveTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+TYPED_TEST(MoveTestCase, canGetByRefRef) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Storage storage(Value{kInt});
         auto value = any_cast<Value&&>(storage);
-        BOOST_CHECK(value.i == kInt);
+        ASSERT_EQ(value.i, kInt);
     }
 
-    BOOST_CHECK(Value::cnt == 0);
+    ASSERT_EQ(Value::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canCopy, T, CopyTypesCopyStorageTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+TYPED_TEST(StorageType, canGetByValue) {
+    using Value = int;
+    using Storage = TypeParam;
+    Storage storage(Value{kInt});
+    auto value = any_cast<Value>(storage);
+    ASSERT_EQ(value, kInt);
+    value++;
+    ASSERT_EQ(value, kInt + 1);
+    ASSERT_EQ(any_cast<Value>(storage), kInt);
+}
+
+TYPED_TEST(CopyTypesCopyStorageTestCase, canCopy) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Storage storage(Value{kInt});
         Storage other = storage;
-        BOOST_CHECK(any_cast<Value>(storage).i == kInt);
-        BOOST_CHECK(any_cast<Value>(other).i == kInt);
-        BOOST_CHECK(Value::cnt == 2);
+        ASSERT_EQ(any_cast<Value>(storage).i, kInt);
+        ASSERT_EQ(any_cast<Value>(other).i, kInt);
+        ASSERT_EQ(Value::cnt, 2);
     }
 
-    BOOST_CHECK(Value::cnt == 0);
+    ASSERT_EQ(Value::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(canCopyAssign, T, CopyTypesCopyStorageTestCases) {
-    T::Value::cnt = 0;
-    using Storage = T::Storage;
-    using Value = T::Value;
+TYPED_TEST(CopyTypesCopyStorageTestCase, canCopyAssign) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
     {
         Storage storage(Value{kInt});
         Storage other(Value{42});
-        BOOST_CHECK(any_cast<Value>(other).i == 42);
+        ASSERT_EQ(any_cast<Value>(other).i, 42);
         other = storage;
-        BOOST_CHECK(any_cast<Value>(storage).i == kInt);
-        BOOST_CHECK(any_cast<Value>(other).i == kInt);
-        BOOST_CHECK(Value::cnt == 2);
+        ASSERT_EQ(any_cast<Value>(storage).i, kInt);
+        ASSERT_EQ(any_cast<Value>(other).i, kInt);
+        ASSERT_EQ(Value::cnt, 2);
     }
 
-    BOOST_CHECK(Value::cnt == 0);
+    ASSERT_EQ(Value::cnt, 0);
 }
 
 #if defined(__cpp_exceptions)
@@ -330,10 +339,29 @@ constexpr auto BasicEgMovableStorages = filterByEg<ExceptionGuarantee::BASIC>(Al
 constexpr auto StrongEgMovableStorages = filterByEg<ExceptionGuarantee::STRONG>(AllStorages);
 
 constexpr auto BasicEgCopyableStorages = filterByEg<ExceptionGuarantee::BASIC>(CopyStorageTypes);
-constexpr auto StorngEgCopyableStorages = filterByEg<ExceptionGuarantee::STRONG>(CopyStorageTypes);
+constexpr auto StrongEgCopyableStorages = filterByEg<ExceptionGuarantee::STRONG>(CopyStorageTypes);
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnMoveWeak, Storage, AsTuple<BasicEgMovableStorages>) {
-    Bomb::cnt = 0;
+template <typename T>
+struct EgTest : ValueCntNuller<Bomb> {};
+
+template <typename T>
+struct BasicEgMovableStorage : EgTest<T> {};
+TYPED_TEST_SUITE(BasicEgMovableStorage, AsTuple<BasicEgMovableStorages>);
+
+template <typename T>
+struct StrongEgMovableStorage : EgTest<T> {};
+TYPED_TEST_SUITE(StrongEgMovableStorage, AsTuple<StrongEgMovableStorages>);
+
+template <typename T>
+struct BasicEgCopyableStorage : EgTest<T> {};
+TYPED_TEST_SUITE(BasicEgCopyableStorage, AsTuple<BasicEgCopyableStorages>);
+
+template <typename T>
+struct StrongEgCopyableStorage : EgTest<T> {};
+TYPED_TEST_SUITE(StrongEgCopyableStorage, AsTuple<StrongEgCopyableStorages>);
+
+TYPED_TEST(BasicEgMovableStorage, throwOnMoveWeak) {
+    using Storage = TypeParam;
     {
         Storage first{std::in_place_type<Bomb>, kInt};
         Storage other{std::in_place_type<Bomb>, 123};
@@ -342,23 +370,23 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnMoveWeak, Storage, AsTuple<BasicEgMovableSt
         } catch (...) {
         }
     }
-    BOOST_CHECK(Bomb::cnt == 0);
+    ASSERT_EQ(Bomb::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnMoveStrong, Storage, AsTuple<StrongEgMovableStorages>) {
-    Bomb::cnt = 0;
+TYPED_TEST(StrongEgMovableStorage, throwOnMoveStrong) {
+    using Storage = TypeParam;
     {
         // under strong exception guarantees the container's move-assignment is noexcept
         Storage first{std::in_place_type<Bomb>, kInt};
         Storage other{std::in_place_type<Bomb>, 123};
         other = std::move(first);
-        BOOST_CHECK(any_cast<Bomb&>(other).i == kInt);
+        ASSERT_EQ(any_cast<Bomb&>(other).i, kInt);
     }
-    BOOST_CHECK(Bomb::cnt == 0);
+    ASSERT_EQ(Bomb::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnCopyWeak, Storage, AsTuple<BasicEgCopyableStorages>) {
-    Bomb::cnt = 0;
+TYPED_TEST(BasicEgCopyableStorage, throwOnCopyWeak) {
+    using Storage = TypeParam;
     {
         Storage first{std::in_place_type<Bomb>, kInt};
         Storage other{std::in_place_type<Bomb>, 123};
@@ -366,13 +394,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnCopyWeak, Storage, AsTuple<BasicEgCopyableS
             other = first;
         } catch (...) {
         }
-        BOOST_CHECK(any_cast<Bomb&>(first).i == kInt);
+        ASSERT_EQ(any_cast<Bomb&>(first).i, kInt);
     }
-    BOOST_CHECK(Bomb::cnt == 0);
+    ASSERT_EQ(Bomb::cnt, 0);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnCopyStrong, Storage, AsTuple<StorngEgCopyableStorages>) {
-    Bomb::cnt = 0;
+TYPED_TEST(StrongEgCopyableStorage, throwOnCopyStrong) {
+    using Storage = TypeParam;
     {
         Storage first{std::in_place_type<Bomb>, kInt};
         Storage other{std::in_place_type<Bomb>, 123};
@@ -380,11 +408,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(throwOnCopyStrong, Storage, AsTuple<StorngEgCopyab
             other = first;
         } catch (...) {
         }
-        BOOST_CHECK(any_cast<Bomb&>(first).i == kInt);
-        BOOST_CHECK(any_cast<Bomb&>(other).i == 123);
-        BOOST_CHECK(Bomb::cnt == 2);
+        ASSERT_EQ(any_cast<Bomb&>(first).i, kInt);
+        ASSERT_EQ(any_cast<Bomb&>(other).i, 123);
+        ASSERT_EQ(Bomb::cnt, 2);
     }
-    BOOST_CHECK(Bomb::cnt == 0);
+    ASSERT_EQ(Bomb::cnt, 0);
 }
 
 #endif

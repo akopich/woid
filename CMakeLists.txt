@@ -49,11 +49,12 @@ endif()
 
 find_package(Boost 1.76 REQUIRED)
 find_package(benchmark REQUIRED)
+find_package(GTest REQUIRED)
 
 include_directories(include)
 
 add_executable(WoidTest test/woid_test.cpp)
-target_link_libraries(WoidTest ${Boost_LIBRARIES})
+target_link_libraries(WoidTest GTest::gtest_main)
 
 add_executable(MoveOnlyBench bench/move_only_bench.cpp)
 target_link_libraries(MoveOnlyBench benchmark::benchmark)
