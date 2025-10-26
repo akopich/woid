@@ -25,8 +25,8 @@ template <typename T>
 inline constexpr TypeTag<T> kTypeTag{};
 
 template <typename S, typename T>
-using RetainConstPtr =
-    std::conditional_t<std::is_const_v<std::remove_reference_t<S>>, const T*, T*>;
+using RetainConstPtr
+    = std::conditional_t<std::is_const_v<std::remove_reference_t<S>>, const T*, T*>;
 
 struct MemManagerTwoPtrs {
   protected:
@@ -178,9 +178,10 @@ template <typename MemManager,
 class StaticStorage {
   private:
     template <typename T>
-    inline static constexpr bool kIsBig = sizeof(T) > Size || alignof(T) > alignof(void*) ||
-                                          (Eg == ExceptionGuarantee::STRONG &&
-                                           !std::is_nothrow_move_constructible_v<T>);
+    inline static constexpr bool kIsBig
+        = sizeof(T) > Size
+          || alignof(T) > alignof(void*)
+          || (Eg == ExceptionGuarantee::STRONG && !std::is_nothrow_move_constructible_v<T>);
 
   public:
     inline static constexpr auto exceptionGuarantee = Eg;

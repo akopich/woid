@@ -16,10 +16,12 @@ static void benchCopyAssignment(benchmark::State& state) {
     size_t N = state.range(0);
     std::vector<ValueType> ints(N);
     std::ranges::generate(ints, [&] { return intDist(gen); });
-    auto anys = ints | std::views::transform([](const ValueType& i) { return Any{i}; }) |
-                std::ranges::to<std::vector>();
-
+    auto anys = ints
+                | std::views::transform([](const ValueType& i) { return Any{i}; })
+                | std::ranges::to<std::vector>();
     std::vector<Any> result(N + 1, Any{ValueType{0}});
+    benchmark::ClobberMemory();
+
     for (auto _ : state) {
         size_t rotationIndex = intDist(gen) % N;
         auto it = std::next(anys.begin(), rotationIndex);
@@ -36,8 +38,9 @@ static void benchCopyCtor(benchmark::State& state) {
     size_t N = state.range(0);
     std::vector<ValueType> ints(N);
     std::ranges::generate(ints, [&] { return intDist(gen); });
-    auto anys = ints | std::views::transform([](const ValueType& i) { return Any{i}; }) |
-                std::ranges::to<std::vector>();
+    auto anys = ints
+                | std::views::transform([](const ValueType& i) { return Any{i}; })
+                | std::ranges::to<std::vector>();
 
     benchmark::ClobberMemory();
 
@@ -77,9 +80,8 @@ static auto benchVectorConstructionAndRotateInt128 = benchCopyCtor<Any, Int128>;
 
 static constexpr size_t N = 1 << 18;
 
-constexpr auto setRange = [](auto* bench) -> void {
-    bench->MinWarmUpTime(1)->RangeMultiplier(2)->Range(1, N);
-};
+constexpr auto setRange
+    = [](auto* bench) -> void { bench->MinWarmUpTime(1)->RangeMultiplier(2)->Range(1, N); };
 
 BENCHMARK(benchCopyCtorInt<AnyThreePtrs<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
 BENCHMARK(benchCopyCtorInt<AnyOnePtrCpy<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);

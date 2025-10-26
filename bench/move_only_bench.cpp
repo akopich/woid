@@ -77,8 +77,9 @@ static void benchVectorConstructionAndSort(benchmark::State& state) {
     std::ranges::generate(ints, [&] { return intDist(gen); });
 
     for (auto _ : state) {
-        auto anys = ints | std::views::transform([](const ValueType& i) { return Any{i}; }) |
-                    std::ranges::to<std::vector>();
+        auto anys = ints
+                    | std::views::transform([](const ValueType& i) { return Any{i}; })
+                    | std::ranges::to<std::vector>();
         std::ranges::sort(anys, [](const Any& a, const Any& b) {
             return any_cast<ValueType>(a) < any_cast<ValueType>(b);
         });
@@ -144,8 +145,8 @@ bool operator<(const NonNoThrowMoveConstructibleInt& a, const NonNoThrowMoveCons
 static_assert(!std::is_nothrow_move_constructible_v<NonNoThrowMoveConstructibleInt>);
 
 template <typename Any>
-static auto benchVectorConstructionThrowInt =
-    benchVectorConstructionAndSort<Any, NonNoThrowMoveConstructibleInt>;
+static auto benchVectorConstructionThrowInt
+    = benchVectorConstructionAndSort<Any, NonNoThrowMoveConstructibleInt>;
 
 static constexpr size_t N = 1 << 18;
 

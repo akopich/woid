@@ -67,14 +67,14 @@ auto make_instantiations = [](auto StorageSizes, auto ExcptSafe, auto Transforme
                            Transformer);
 };
 
-constexpr auto AnyOnePtrsInsts =
-    make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyOnePtr>);
-constexpr auto AnyTwoPtrsInsts =
-    make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyTwoPtrs>);
-constexpr auto AnyThreePtrsInsts =
-    make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyThreePtrs>);
-constexpr auto AnyOnePtrCpyInsts =
-    make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyOnePtrCpy>);
+constexpr auto AnyOnePtrsInsts
+    = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyOnePtr>);
+constexpr auto AnyTwoPtrsInsts
+    = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyTwoPtrs>);
+constexpr auto AnyThreePtrsInsts
+    = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyThreePtrs>);
+constexpr auto AnyOnePtrCpyInsts
+    = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyOnePtrCpy>);
 
 constexpr auto MoveOnlyStorageTypes = hana::append(hana::concat(AnyOnePtrsInsts, AnyTwoPtrsInsts),
                                                    hana::type_c<detail::DynamicStorage>);
@@ -103,10 +103,10 @@ constexpr static auto mkTestCases(auto StorageTypes, auto StoredTypes) {
 }
 
 constexpr auto CopyTypesCopyStorageTestCases = mkTestCases(CopyStorageTypes, CopyTypes);
-constexpr auto MoveTestCases =
-    hana::concat(mkTestCases(MoveOnlyStorageTypes, ValueTypes), CopyTypesCopyStorageTestCases);
-constexpr auto CopyTypesTestCases =
-    hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCases);
+constexpr auto MoveTestCases
+    = hana::concat(mkTestCases(MoveOnlyStorageTypes, ValueTypes), CopyTypesCopyStorageTestCases);
+constexpr auto CopyTypesTestCases
+    = hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCases);
 
 template <auto HanaTuple>
 using AsTuple = decltype(hana::unpack(HanaTuple, hana::template_<testing::Types>))::type;
