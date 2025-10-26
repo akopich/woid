@@ -21,7 +21,7 @@ def parse_benchmark_line(line: str) -> Optional[BenchmarkResult]:
     pattern = re.compile(
         r"^\s*(?P<bench_name>[^<]+?)"           # 1. Benchmark Name (non-greedy, stops at <)
         r"(?:<(?P<container>.+?)>)?\/"          # 2. Optional Container Name (non-greedy), followed by /
-        r"(?P<size>\d+)"                        # 3. Problem Size (integer)
+        r"(?P<size>\d+).*?"                        # 3. Problem Size (integer)
         r"\s+(?P<time>[\d.]+)\s+ns.*$"          # 4. Primary Time (allow digits and decimal point) and rest of line
     )
     match = pattern.match(line.strip())
@@ -41,19 +41,19 @@ show = True
 def execute_binary():
     global show
     """
-    Parses arguments for the script and the external binary, 
+    Parses arguments for the script and the external binary,
     and executes the binary using subprocess based on the chosen mode.
     """
     # 1. Setup Argument Parser
-    # The parser uses a custom epilog to clearly explain how to separate 
+    # The parser uses a custom epilog to clearly explain how to separate
     # arguments intended for the script vs. arguments for the binary.
     parser = argparse.ArgumentParser(
         description="A Python script to execute an external binary with custom arguments.",
         epilog="""
         --- USAGE EXAMPLE ---
         python binary_executor.py --binary /bin/ls --mode save -- -l -a /home/user
-        
-        Note the double-dash (--) separator. Arguments before it are for 
+
+        Note the double-dash (--) separator. Arguments before it are for
         this script; arguments after it are for the external binary.
         """
     )
@@ -65,7 +65,7 @@ def execute_binary():
         required=True,
         help='The required path to the external binary (e.g., /usr/bin/python or /bin/bash).'
     )
-    
+
     # Updated: Replaced --script-flag with --mode, restricting choices
     parser.add_argument(
         '--mode',
@@ -86,7 +86,7 @@ def execute_binary():
 
     args = parser.parse_args()
 
-    # The first element of REMAINDER list is often the separator itself ('--'), 
+    # The first element of REMAINDER list is often the separator itself ('--'),
     # so we strip it out if present.
     if args.binary_args and args.binary_args[0] == '--':
         binary_args_list = args.binary_args[1:]
@@ -100,10 +100,10 @@ def execute_binary():
         sys.exit(1)
 
     # 4. Construct the Command and Execute
-    
+
     # The full command starts with the binary path, followed by its arguments.
     full_command = [args.binary] + binary_args_list
-    
+
     # Inform the user about the execution details
     print(f"--- Script Settings ---")
     print(f"Binary Path: {args.binary}")
@@ -114,36 +114,36 @@ def execute_binary():
 
     try:
         print(f"--- Running Binary and Capturing Output ---")
-        
+
         # Execute command, ALWAYS capturing output and standard error
         result = subprocess.run(
-            full_command, 
-            check=True, 
+            full_command,
+            check=True,
             capture_output=True, # ALWAYS capture output
             text=True
         )
 
         # 5. Process Output (Always print and store)
-        
+
         # Always print the captured STDOUT to the console
         print(f"\n--- Captured STDOUT Output (Printed) ---")
         sys.stdout.write(result.stdout)
-        
+
         # Always print STDERR if present
         if result.stderr:
             print(f"\n--- Captured STDERR Output (Printed) ---", file=sys.stderr)
             sys.stderr.write(result.stderr)
-            
+
         # Store the STDOUT lines in a variable (array of strings)
         output_lines = result.stdout.splitlines()
-        
+
         # Example of using the stored variable:
         print(f"\n--- Execution Summary ---")
         print(f"Total lines captured in 'output_lines' variable: {len(output_lines)}")
         print(f"First line captured: {'(None)' if not output_lines else output_lines[0]}")
-        
+
         print(f"Binary finished successfully with return code {result.returncode}")
-        
+
         return output_lines
     except FileNotFoundError:
         # This should ideally be caught by the os.path.isfile check, but good practice to keep.
@@ -174,13 +174,13 @@ def group_benchmark_results(results: list[BenchmarkResult]) -> dict[str, dict[st
 
         result_lists.sizes.append(result.problem_size)
         result_lists.times.append(result.time_ns)
-        
+
     final_dict = {k: dict(v) for k, v in grouped_data.items()}
     return final_dict
 
 def plot_benchmark_comparison(benchmark_name: str, container_data: dict[str, Results]):
     BASE_CONTAINER = "std::any"
-    
+
     if BASE_CONTAINER not in container_data:
         print(f"Error: Cannot calculate speedup for '{benchmark_name}' as the baseline container <{BASE_CONTAINER}> is missing.")
         return
@@ -201,16 +201,16 @@ def plot_benchmark_comparison(benchmark_name: str, container_data: dict[str, Res
              continue
 
         # Calculate Speedup: Ratio = Base Time / Current Time
-        speedups = base_times / results_obj.times 
+        speedups = base_times / results_obj.times
 
         # Plot sizes vs. speedup
         ax.plot(results_obj.sizes, speedups, marker='o', linestyle='-', label=container_name)
-    
+
     # Set plot labels and title
     ax.set_xlabel("Vector size")
     ax.set_ylabel(f"Speedup vs. <{BASE_CONTAINER}>, times")
     ax.set_title(f"Speedup Comparison for: {benchmark_name}")
-    
+
     # Add a grid and legend for readability
     ax.grid(True, linestyle='--', alpha=0.6)
     ax.axhline(1.0, color='r', linestyle='--', linewidth=0.8, label=f"Baseline ({BASE_CONTAINER})")
@@ -236,7 +236,7 @@ if __name__ == "__main__":
             # Create a clean filename
             clean_bench_name = name.replace('<', '_').replace('>', '_')
             output_filename = f'{clean_bench_name}_speedup.png'
-            
+
             # 2. Save the current figure to a PNG file
             fig.savefig(output_filename, dpi=300) # Use dpi=300 for high resolution
             # Close the figure to free memory
@@ -245,4 +245,3 @@ if __name__ == "__main__":
             print(f"    -> Plot saved successfully to '{output_filename}' (PNG format).")
     if (show):
         plt.show()
-

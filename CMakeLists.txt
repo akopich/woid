@@ -58,3 +58,6 @@ target_link_libraries(WoidTest GTest::gtest_main)
 
 add_executable(MoveOnlyBench bench/move_only_bench.cpp)
 target_link_libraries(MoveOnlyBench benchmark::benchmark)
+
+add_executable(CopyBench bench/copy_bench.cpp)
+target_link_libraries(CopyBench benchmark::benchmark)

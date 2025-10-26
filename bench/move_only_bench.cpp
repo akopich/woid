@@ -68,7 +68,7 @@ static void benchSwapInt(benchmark::State& state) {
 }
 
 template <typename Any, typename ValueType>
-static void benchVectorConstruction(benchmark::State& state) {
+static void benchVectorConstructionAndSort(benchmark::State& state) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> intDist(1, std::numeric_limits<int>::max());
@@ -105,10 +105,10 @@ BENCHMARK(benchWithInt128<AnyOnePtr<8>>);
 BENCHMARK(benchWithInt128<std::any>);
 
 template <typename Any>
-static auto benchVectorConstructionInt = benchVectorConstruction<Any, int>;
+static auto benchVectorConstructionInt = benchVectorConstructionAndSort<Any, int>;
 
 template <typename Any>
-static auto benchVectorConstructionInt64 = benchVectorConstruction<Any, std::uint64_t>;
+static auto benchVectorConstructionInt64 = benchVectorConstructionAndSort<Any, std::uint64_t>;
 
 struct Int128 {
     uint64_t a;
@@ -122,7 +122,7 @@ bool operator<(const Int128& a, const Int128& b) { return a.a < b.a; }
 static_assert(alignof(Int128) == alignof(void*));
 
 template <typename Any>
-static auto benchVectorConstructionInt128 = benchVectorConstruction<Any, Int128>;
+static auto benchVectorConstructionInt128 = benchVectorConstructionAndSort<Any, Int128>;
 
 struct NonNoThrowMoveConstructibleInt {
     int x;
@@ -145,7 +145,7 @@ static_assert(!std::is_nothrow_move_constructible_v<NonNoThrowMoveConstructibleI
 
 template <typename Any>
 static auto benchVectorConstructionThrowInt =
-    benchVectorConstruction<Any, NonNoThrowMoveConstructibleInt>;
+    benchVectorConstructionAndSort<Any, NonNoThrowMoveConstructibleInt>;
 
 static constexpr size_t N = 1 << 18;
 
