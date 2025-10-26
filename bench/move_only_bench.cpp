@@ -1,10 +1,8 @@
+#include "common.hpp"
 #include "woid.hpp"
 #include <algorithm>
 #include <any>
 #include <benchmark/benchmark.h>
-#include <limits>
-#include <random>
-#include <ranges>
 #include <utility>
 
 using namespace woid;
@@ -69,17 +67,10 @@ static void benchSwapInt(benchmark::State& state) {
 
 template <typename Any, typename ValueType>
 static void benchVectorConstructionAndSort(benchmark::State& state) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> intDist(1, std::numeric_limits<int>::max());
-    size_t N = state.range(0);
-    std::vector<ValueType> ints(N);
-    std::ranges::generate(ints, [&] { return intDist(gen); });
+    auto ints = bench_common::makeRandomVector<ValueType>(state.range(0));
 
     for (auto _ : state) {
-        auto anys = ints
-                    | std::views::transform([](const ValueType& i) { return Any{i}; })
-                    | std::ranges::to<std::vector>();
+        auto anys = bench_common::wrapInts<Any, ValueType>(ints);
         std::ranges::sort(anys, [](const Any& a, const Any& b) {
             return any_cast<ValueType>(a) < any_cast<ValueType>(b);
         });
@@ -150,7 +141,8 @@ static auto benchVectorConstructionThrowInt
 
 static constexpr size_t N = 1 << 18;
 
-constexpr auto setRange = [](auto* bench) -> void { bench->RangeMultiplier(2)->Range(1, N); };
+constexpr auto setRange
+    = [](auto* bench) -> void { bench->MinWarmUpTime(1)->RangeMultiplier(2)->Range(1, N); };
 
 BENCHMARK(benchVectorConstructionInt<AnyOnePtr<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt<AnyOnePtrCpy<8, ExceptionGuarantee::NONE>>)->Apply(setRange);

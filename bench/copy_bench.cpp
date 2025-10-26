@@ -1,29 +1,21 @@
+#include "common.hpp"
 #include "woid.hpp"
 #include <algorithm>
 #include <any>
 #include <benchmark/benchmark.h>
-#include <print>
-#include <random>
-#include <ranges>
 
 using namespace woid;
 
 template <typename Any, typename ValueType>
 static void benchCopyAssignment(benchmark::State& state) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> intDist(0, std::numeric_limits<int>::max());
     size_t N = state.range(0);
-    std::vector<ValueType> ints(N);
-    std::ranges::generate(ints, [&] { return intDist(gen); });
-    auto anys = ints
-                | std::views::transform([](const ValueType& i) { return Any{i}; })
-                | std::ranges::to<std::vector>();
+    auto anys = bench_common::wrapInts<Any>(bench_common::makeRandomVector<ValueType>(N));
     std::vector<Any> result(N + 1, Any{ValueType{0}});
+
     benchmark::ClobberMemory();
 
     for (auto _ : state) {
-        size_t rotationIndex = intDist(gen) % N;
+        size_t rotationIndex = bench_common::randInt() % N;
         auto it = std::next(anys.begin(), rotationIndex);
         std::ranges::rotate_copy(anys, it, result.begin());
         benchmark::ClobberMemory();
@@ -32,15 +24,8 @@ static void benchCopyAssignment(benchmark::State& state) {
 
 template <typename Any, typename ValueType>
 static void benchCopyCtor(benchmark::State& state) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> intDist(0, std::numeric_limits<int>::max());
     size_t N = state.range(0);
-    std::vector<ValueType> ints(N);
-    std::ranges::generate(ints, [&] { return intDist(gen); });
-    auto anys = ints
-                | std::views::transform([](const ValueType& i) { return Any{i}; })
-                | std::ranges::to<std::vector>();
+    auto anys = bench_common::wrapInts<Any>(bench_common::makeRandomVector<ValueType>(N));
 
     benchmark::ClobberMemory();
 
@@ -48,7 +33,7 @@ static void benchCopyCtor(benchmark::State& state) {
         state.PauseTiming();
         std::vector<Any> result;
         result.reserve(N);
-        size_t rotationIndex = intDist(gen) % N;
+        size_t rotationIndex = bench_common::randInt() % N;
         auto it = std::next(anys.begin(), rotationIndex);
 
         state.ResumeTiming();
