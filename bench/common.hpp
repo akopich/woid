@@ -26,4 +26,22 @@ auto wrapInts(const std::vector<ValueType>& ints) {
            | std::ranges::to<std::vector>();
 }
 
+struct NonNoThrowMoveConstructibleInt {
+    int x;
+    NonNoThrowMoveConstructibleInt(int x) : x(x) {}
+    NonNoThrowMoveConstructibleInt() = default;
+    NonNoThrowMoveConstructibleInt(const NonNoThrowMoveConstructibleInt&) = default;
+    NonNoThrowMoveConstructibleInt& operator=(const NonNoThrowMoveConstructibleInt&) = default;
+
+    NonNoThrowMoveConstructibleInt(NonNoThrowMoveConstructibleInt&& other) : x(other.x) {};
+    NonNoThrowMoveConstructibleInt& operator=(NonNoThrowMoveConstructibleInt&&) = default;
+
+    ~NonNoThrowMoveConstructibleInt() = default;
+};
+
+inline bool operator<(const bench_common::NonNoThrowMoveConstructibleInt& a,
+                      const bench_common::NonNoThrowMoveConstructibleInt& b) {
+    return a.x < b.x;
+}
+
 } // namespace bench_common

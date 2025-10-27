@@ -116,28 +116,11 @@ static_assert(alignof(Int128) == alignof(void*));
 template <typename Any>
 static auto benchVectorConstructionInt128 = benchVectorConstructionAndSort<Any, Int128>;
 
-struct NonNoThrowMoveConstructibleInt {
-    int x;
-    NonNoThrowMoveConstructibleInt(int x) : x(x) {}
-    NonNoThrowMoveConstructibleInt() = default;
-    NonNoThrowMoveConstructibleInt(const NonNoThrowMoveConstructibleInt&) = default;
-    NonNoThrowMoveConstructibleInt& operator=(const NonNoThrowMoveConstructibleInt&) = default;
-
-    NonNoThrowMoveConstructibleInt(NonNoThrowMoveConstructibleInt&& other) : x(other.x) {};
-    NonNoThrowMoveConstructibleInt& operator=(NonNoThrowMoveConstructibleInt&&) = default;
-
-    ~NonNoThrowMoveConstructibleInt() = default;
-};
-
-bool operator<(const NonNoThrowMoveConstructibleInt& a, const NonNoThrowMoveConstructibleInt& b) {
-    return a.x < b.x;
-}
-
-static_assert(!std::is_nothrow_move_constructible_v<NonNoThrowMoveConstructibleInt>);
+static_assert(!std::is_nothrow_move_constructible_v<bench_common::NonNoThrowMoveConstructibleInt>);
 
 template <typename Any>
 static auto benchVectorConstructionThrowInt
-    = benchVectorConstructionAndSort<Any, NonNoThrowMoveConstructibleInt>;
+    = benchVectorConstructionAndSort<Any, bench_common::NonNoThrowMoveConstructibleInt>;
 
 static constexpr size_t N = 1 << 18;
 
