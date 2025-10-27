@@ -36,13 +36,13 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "AUBSan")
     add_compile_options("-fno-exceptions" "-g" "-O1"
                         "-fsanitize=address,undefined"
                         "-fno-omit-frame-pointer"
-                        "-fno-sanitize-recover=all" "-fno-rtti")
+                        "-fno-sanitize-recover=all")
     link_libraries("-fsanitize=address,undefined")
 elseif(CMAKE_BUILD_TYPE STREQUAL "AUBSanWithExceptions")
     add_compile_options("-g" "-O1"
                         "-fsanitize=address,undefined"
                         "-fno-omit-frame-pointer"
-                        "-fno-sanitize-recover=all" "-fno-rtti")
+                        "-fno-sanitize-recover=all")
     link_libraries("-fsanitize=address,undefined")
 else()
     # Default flags if CMAKE_BUILD_TYPE isn't specified

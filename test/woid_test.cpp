@@ -257,6 +257,20 @@ TYPED_TEST(MoveTestCase, canGetByRefRef) {
     ASSERT_EQ(Value::cnt, 0);
 }
 
+TYPED_TEST(MoveTestCase, canMoveAssignToMovedFrom) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
+    {
+        Storage storage{Value{42}};
+        Storage unused{std::move(storage)};
+        storage = Storage{Value{kInt}};
+        auto value = any_cast<Value&&>(storage);
+        ASSERT_EQ(value.i, kInt);
+    }
+
+    ASSERT_EQ(Value::cnt, 0);
+}
+
 TYPED_TEST(StorageType, canGetByValue) {
     using Value = int;
     using Storage = TypeParam;
@@ -293,6 +307,21 @@ TYPED_TEST(CopyTypesCopyStorageTestCase, canCopyAssign) {
         ASSERT_EQ(any_cast<Value>(storage).i, kInt);
         ASSERT_EQ(any_cast<Value>(other).i, kInt);
         ASSERT_EQ(Value::cnt, 2);
+    }
+
+    ASSERT_EQ(Value::cnt, 0);
+}
+
+TYPED_TEST(CopyTypesCopyStorageTestCase, canCopyAssignToMovedFrom) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
+    {
+        Storage storage{Value{42}};
+        Storage unused{std::move(storage)};
+        Storage other{Value{kInt}};
+        storage = other;
+        auto value = any_cast<Value&&>(storage);
+        ASSERT_EQ(value.i, kInt);
     }
 
     ASSERT_EQ(Value::cnt, 0);
