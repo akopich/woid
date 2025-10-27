@@ -306,7 +306,10 @@ class Bomb {
     std::array<char, 15> payload;
     inline static int cnt = 0;
     Bomb(int i) : i(i) { cnt++; }
-    ~Bomb() { cnt--; }
+    ~Bomb() {
+        i = -1;
+        cnt--;
+    }
 
     Bomb(const Bomb&) { throw std::runtime_error("Copy construction failed."); }
 

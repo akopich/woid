@@ -18,33 +18,35 @@ else()
     message(FATAL_ERROR "Unknown compiler selection: ${CC_SELECTION}. Use 'clang' or 'gcc'.")
 endif()
 
-add_compile_options("-Wall" "-Wextra" "-pedantic" "-fno-rtti")
+add_compile_options("-Wall" "-Wextra" "-pedantic")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     # Debug-specific flags
     add_compile_options("-fno-exceptions" "-g3" "-O0")
+elseif(CMAKE_BUILD_TYPE STREQUAL "DebugWithExceptions")
+    add_compile_options("-fexceptions" "-g3" "-O0")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-    add_compile_options("-fno-exceptions" "-O3" "-DNDEBUG")
+    add_compile_options("-fno-exceptions" "-O3" "-DNDEBUG" "-fno-rtti")
 elseif(CMAKE_BUILD_TYPE STREQUAL "ReleaseWithExceptions")
-    add_compile_options("-O3" "-DNDEBUG")
+    add_compile_options("-O3" "-DNDEBUG" "-fno-rtti")
 elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     # Profiling/Release with Debug Info flags
-    add_compile_options("-fno-exceptions" "-fno-omit-frame-pointer" "-g" "-O2")
+    add_compile_options("-fno-exceptions" "-fno-omit-frame-pointer" "-g" "-O2" "-fno-rtti")
 elseif(CMAKE_BUILD_TYPE STREQUAL "AUBSan")
     add_compile_options("-fno-exceptions" "-g" "-O1"
                         "-fsanitize=address,undefined"
                         "-fno-omit-frame-pointer"
-                        "-fno-sanitize-recover=all")
+                        "-fno-sanitize-recover=all" "-fno-rtti")
     link_libraries("-fsanitize=address,undefined")
 elseif(CMAKE_BUILD_TYPE STREQUAL "AUBSanWithExceptions")
     add_compile_options("-g" "-O1"
                         "-fsanitize=address,undefined"
                         "-fno-omit-frame-pointer"
-                        "-fno-sanitize-recover=all")
+                        "-fno-sanitize-recover=all" "-fno-rtti")
     link_libraries("-fsanitize=address,undefined")
 else()
     # Default flags if CMAKE_BUILD_TYPE isn't specified
-    add_compile_options("-fno-exceptions" "-g" "-O0")
+    add_compile_options("-fno-exceptions" "-g" "-O0" "-fno-rtti")
 endif()
 
 find_package(Boost 1.76 REQUIRED)

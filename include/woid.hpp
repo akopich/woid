@@ -174,8 +174,7 @@ template <typename MemManager,
           std::size_t Size,
           ExceptionGuarantee Eg,
           bool IsMoveOnly>
-    requires(Size >= sizeof(void*))
-class StaticStorage {
+    requires(Size >= sizeof(void*)) class StaticStorage {
   private:
     template <typename T>
     inline static constexpr bool kIsBig
@@ -188,7 +187,7 @@ class StaticStorage {
 
     template <typename T>
     explicit StaticStorage(T&& t)
-        : StaticStorage(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
+          : StaticStorage(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
 
     template <typename T, typename... Args>
     StaticStorage(std::in_place_type_t<T>, Args... args) {
@@ -205,14 +204,21 @@ class StaticStorage {
     }
     StaticStorage(const StaticStorage& other)
         requires(!IsMoveOnly)
-        : mm(other.mm) {
+          : mm(other.mm) {
         mm->cpy(const_cast<void*>(other.ptr()), ptr());
     }
     StaticStorage& operator=(const StaticStorage& other)
-        requires(!IsMoveOnly)
-    {
-        StaticStorage tmp = other;
-        std::swap(*this, tmp);
+        requires(!IsMoveOnly) {
+        if constexpr (Eg == ExceptionGuarantee::STRONG) {
+            *this = StaticStorage{other};
+        } else {
+            if (mm != nullptr)
+                mm->del(ptr());
+            if constexpr (Eg == ExceptionGuarantee::BASIC)
+                mm = nullptr;
+            other.mm->cpy(const_cast<void*>(other.ptr()), ptr());
+            mm = other.mm;
+        }
         return *this;
     }
     StaticStorage(StaticStorage&& other) noexcept(Eg != ExceptionGuarantee::BASIC) : mm(other.mm) {
@@ -295,7 +301,7 @@ class DynamicStorage {
 
     template <typename T, typename... Args>
     DynamicStorage(std::in_place_type_t<T>, Args&&... args)
-        : storage{new T(std::forward<Args>(args)...), Deleter{kTypeTag<T>}} {}
+          : storage{new T(std::forward<Args>(args)...), Deleter{kTypeTag<T>}} {}
 
     ~DynamicStorage() = default;
 
