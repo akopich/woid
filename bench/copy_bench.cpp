@@ -9,15 +9,18 @@ using namespace woid;
 template <typename Any, typename ValueType>
 static void benchCopyAssignment(benchmark::State& state) {
     size_t N = state.range(0);
-    auto anys = bench_common::wrapInts<Any>(bench_common::makeRandomVector<ValueType>(N));
-    std::vector<Any> result(N + 1, Any{ValueType{0}});
-
-    benchmark::ClobberMemory();
 
     for (auto _ : state) {
-        size_t rotationIndex = bench_common::randInt() % N;
-        auto it = std::next(anys.begin(), rotationIndex);
-        std::ranges::rotate_copy(anys, it, result.begin());
+        state.PauseTiming();
+        auto anys = bench_common::wrapInts<Any>(bench_common::makeRandomVector<ValueType>(N));
+        std::vector<Any> result(N + 1, Any{ValueType{0}});
+
+        benchmark::ClobberMemory();
+
+        state.ResumeTiming();
+        std::ranges::copy(anys, result.begin());
+        state.PauseTiming();
+
         benchmark::ClobberMemory();
     }
 }
@@ -33,11 +36,11 @@ static void benchCopyCtor(benchmark::State& state) {
         state.PauseTiming();
         std::vector<Any> result;
         result.reserve(N);
-        size_t rotationIndex = bench_common::randInt() % N;
-        auto it = std::next(anys.begin(), rotationIndex);
+
+        benchmark::ClobberMemory();
 
         state.ResumeTiming();
-        std::ranges::rotate_copy(anys, it, std::back_inserter(result));
+        std::ranges::copy(anys, std::back_inserter(result));
         state.PauseTiming();
 
         benchmark::ClobberMemory();
