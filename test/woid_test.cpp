@@ -22,7 +22,10 @@ struct S {
     }
     S(const S&) = delete;
     S& operator=(const S&) = delete;
-    ~S() { cnt--; }
+    ~S() {
+        i = -1;
+        cnt--;
+    }
 };
 
 template <typename AlignAs>
@@ -44,7 +47,10 @@ struct C {
         i = other.i;
         return *this;
     }
-    ~C() { cnt--; }
+    ~C() {
+        i = -1;
+        cnt--;
+    }
 };
 
 inline constexpr int kInt = 13;
