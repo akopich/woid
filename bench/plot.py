@@ -7,7 +7,10 @@ import matplotlib.pyplot as plt
 import sys
 from typing import List, Dict, Any, Tuple, Optional
 import os
+import shlex
 from dataclasses import dataclass
+import random
+import statistics
 
 
 @dataclass
@@ -38,13 +41,33 @@ def parse_benchmark_line(line: str) -> Optional[BenchmarkResult]:
 
 show = True
 
-def execute_binary():
+
+def run_cmake_config(shuffle_seed: int) -> subprocess.CompletedProcess:
+    command_template = (
+        "cmake -Bbuild -H. "
+        "-DCMAKE_BUILD_TYPE=Release "
+        "-DCC_SELECTION=clang "
+        "-DSHUFFLE_SEED={seed}"
+    )
+
+    full_command = command_template.format(seed=shuffle_seed)
+    command_list = shlex.split(full_command)
+
+    result = subprocess.run(
+        command_list,
+        check=True,
+        text=True,
+    )
+
+    return result
+
+def parse_arguments():
     global show
     """
     Parses arguments for the script and the external binary,
     and executes the binary using subprocess based on the chosen mode.
     """
-    # 1. Setup Argument Parser
+    # Setup Argument Parser
     # The parser uses a custom epilog to clearly explain how to separate
     # arguments intended for the script vs. arguments for the binary.
     parser = argparse.ArgumentParser(
@@ -58,12 +81,26 @@ def execute_binary():
         """
     )
 
-    # 2. Arguments for the Script
     parser.add_argument(
-        '--binary',
+        '--reps',
+        type=int,
+        required=True,
+        help='Number of reps to be built and ran.'
+    )
+
+    parser.add_argument(
+        '--seed',
+        type=int,
+        required=True,
+        help='Random seed to be used for ASLR.'
+    )
+
+    # Arguments for the Script
+    parser.add_argument(
+        '--target',
         type=str,
         required=True,
-        help='The required path to the external binary (e.g., /usr/bin/python or /bin/bash).'
+        help='The target to be built and ran.'
     )
 
     # Updated: Replaced --script-flag with --mode, restricting choices
@@ -84,7 +121,10 @@ def execute_binary():
         help='Arguments to be passed to the external binary. Must be preceded by a double-dash (--) separator.'
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+def execute_binary(args):
+    global show
 
     # The first element of REMAINDER list is often the separator itself ('--'),
     # so we strip it out if present.
@@ -95,18 +135,19 @@ def execute_binary():
         binary_args_list = args.binary_args
 
     # Check if the binary file exists
-    if not os.path.isfile(args.binary):
-        print(f"Error: Binary not found at path: {args.binary}", file=sys.stderr)
+    binary = f"build/{args.target}"
+    if not os.path.isfile(binary):
+        print(f"Error: Binary not found at path: {binary}", file=sys.stderr)
         sys.exit(1)
 
     # 4. Construct the Command and Execute
 
     # The full command starts with the binary path, followed by its arguments.
-    full_command = [args.binary] + binary_args_list
+    full_command = [binary] + binary_args_list
 
     # Inform the user about the execution details
     print(f"--- Script Settings ---")
-    print(f"Binary Path: {args.binary}")
+    print(f"Binary Path: {args.target}")
     print(f"Execution Mode: {args.mode}") # Updated printout
     print(f"Command to execute: {' '.join(full_command)}\n")
 
@@ -147,7 +188,7 @@ def execute_binary():
         return output_lines
     except FileNotFoundError:
         # This should ideally be caught by the os.path.isfile check, but good practice to keep.
-        print(f"Error: The binary '{args.binary}' was not found.", file=sys.stderr)
+        print(f"Error: The binary '{binary}' was not found.", file=sys.stderr)
         sys.exit(1)
     except subprocess.CalledProcessError as e:
         print(f"\n--- Execution Failed (Return Code: {e.returncode}) ---", file=sys.stderr)
@@ -163,19 +204,42 @@ def execute_binary():
 
 @dataclass
 class Results:
-    sizes: list[int]
-    times: list[int]
+    sizes: List[int]
+    times: List[int]
 
-def group_benchmark_results(results: list[BenchmarkResult]) -> dict[str, dict[str, Results]]:
-    grouped_data = defaultdict(lambda: defaultdict(lambda: Results(sizes=[], times=[])))
+class MutableResults:
+    def __init__(self):
+        self.times_by_size: defaultdict[int, List[int]] = defaultdict(list)
+
+    def to_final_results(self) -> Results:
+        final_sizes = []
+        final_times = []
+
+        for size in sorted(self.times_by_size.keys()):
+            times = self.times_by_size[size]
+
+            if times:
+                median_time = statistics.median(times)
+                final_sizes.append(size)
+                final_times.append(median_time)
+
+        return Results(sizes=final_sizes, times=final_times)
+
+
+def group_benchmark_results(results: List) -> Dict[str, Dict[str, Results]]:
+    grouped_mutable_data = defaultdict(lambda: defaultdict(MutableResults))
 
     for result in results:
-        result_lists = grouped_data[result.benchmark_name][result.container_name]
+        mutable_result_object = grouped_mutable_data[result.benchmark_name][result.container_name]
+        mutable_result_object.times_by_size[result.problem_size].append(result.time_ns)
 
-        result_lists.sizes.append(result.problem_size)
-        result_lists.times.append(result.time_ns)
+    final_dict = {}
 
-    final_dict = {k: dict(v) for k, v in grouped_data.items()}
+    for bench_name, container_map in grouped_mutable_data.items():
+        final_dict[bench_name] = {}
+        for container_name, mutable_results in container_map.items():
+            final_dict[bench_name][container_name] = mutable_results.to_final_results()
+
     return final_dict
 
 def plot_benchmark_comparison(benchmark_name: str, container_data: dict[str, Results]):
@@ -227,7 +291,14 @@ def read_from_file(path):
     return lines;
 
 if __name__ == "__main__":
-    lines = execute_binary()
+    args = parse_arguments();
+    random.seed(args.seed)
+    lines = []
+    linker_seeds = [random.randint(1, 999999) for _ in range(args.reps)]
+    for seed in linker_seeds:
+        print(f"SEED: {seed}")
+        run_cmake_config(seed)
+        lines += execute_binary(args)
     results = list(filter(None,[parse_benchmark_line(line) for line in lines]))
     grouped = group_benchmark_results(results)
     for name,data in grouped.items():

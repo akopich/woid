@@ -4,6 +4,7 @@ project(woid)
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+option(SHUFFLE_SEED "Seed for ASLR.")
 option(CC_SELECTION "Select the compiler family (e.g., clang or gcc)." "clang")
 
 if (CC_SELECTION STREQUAL "clang")
@@ -63,3 +64,11 @@ target_link_libraries(MoveOnlyBench benchmark::benchmark)
 
 add_executable(CopyBench bench/copy_bench.cpp)
 target_link_libraries(CopyBench benchmark::benchmark)
+
+if (DEFINED SHUFFLE_SEED)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--shuffle-sections=.*=${SHUFFLE_SEED}")
+else()
+    # Provide a default or message when the variable isn't set
+    message(STATUS "SHUFFLE_SEED not defined. Using default linker behavior.")
+endif()

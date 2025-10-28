@@ -10,18 +10,17 @@ template <typename Any, typename ValueType>
 static void benchCopyAssignment(benchmark::State& state) {
     size_t N = state.range(0);
 
+    auto anys = bench_common::wrapInts<Any>(bench_common::makeRandomVector<ValueType>(N));
+    std::vector<Any> result(N, Any{ValueType{0}});
+    benchmark::ClobberMemory();
+
+    state.PauseTiming();
+
     for (auto _ : state) {
-        state.PauseTiming();
-        auto anys = bench_common::wrapInts<Any>(bench_common::makeRandomVector<ValueType>(N));
-        std::vector<Any> result(N + 1, Any{ValueType{0}});
-
-        benchmark::ClobberMemory();
-
         state.ResumeTiming();
         std::ranges::copy(anys, result.begin());
         state.PauseTiming();
-
-        benchmark::ClobberMemory();
+        benchmark::DoNotOptimize(result);
     }
 }
 
@@ -30,20 +29,17 @@ static void benchCopyCtor(benchmark::State& state) {
     size_t N = state.range(0);
     auto anys = bench_common::wrapInts<Any>(bench_common::makeRandomVector<ValueType>(N));
 
+    std::vector<Any> result;
+    result.reserve(N);
     benchmark::ClobberMemory();
 
     for (auto _ : state) {
-        state.PauseTiming();
-        std::vector<Any> result;
-        result.reserve(N);
-
-        benchmark::ClobberMemory();
+        result.clear();
 
         state.ResumeTiming();
         std::ranges::copy(anys, std::back_inserter(result));
         state.PauseTiming();
-
-        benchmark::ClobberMemory();
+        benchmark::DoNotOptimize(result);
     }
 }
 
@@ -80,7 +76,7 @@ static auto benchVectorConstructionAndRotateInt128 = benchCopyCtor<Any, Int128>;
 static constexpr size_t N = 1 << 18;
 
 constexpr auto setRange
-    = [](auto* bench) -> void { bench->MinWarmUpTime(1)->RangeMultiplier(2)->Range(1, N); };
+    = [](auto* bench) -> void { bench->MinWarmUpTime(0.1)->RangeMultiplier(2)->Range(1, N); };
 
 BENCHMARK(benchCopyCtorInt<AnyOnePtrCpy<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
 BENCHMARK(benchCopyCtorInt<AnyThreePtrs<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
