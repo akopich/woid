@@ -42,7 +42,7 @@ def parse_benchmark_line(line: str) -> Optional[BenchmarkResult]:
 show = True
 
 
-def run_cmake_config(shuffle_seed: int) -> subprocess.CompletedProcess:
+def build_bench(shuffle_seed: int, target: str) -> subprocess.CompletedProcess:
     command_template = (
         "cmake -Bbuild -H. "
         "-DCMAKE_BUILD_TYPE=Release "
@@ -58,6 +58,17 @@ def run_cmake_config(shuffle_seed: int) -> subprocess.CompletedProcess:
         check=True,
         text=True,
     )
+
+    build_command = [
+        "cmake",
+        "--build",
+        "build",
+        "--target",
+        target,
+        "-j20"
+    ]
+
+    subprocess.run(build_command, check=True)
 
     return result
 
@@ -297,7 +308,7 @@ if __name__ == "__main__":
     linker_seeds = [random.randint(1, 999999) for _ in range(args.reps)]
     for seed in linker_seeds:
         print(f"SEED: {seed}")
-        run_cmake_config(seed)
+        build_bench(seed, args.target)
         lines += execute_binary(args)
     results = list(filter(None,[parse_benchmark_line(line) for line in lines]))
     grouped = group_benchmark_results(results)
