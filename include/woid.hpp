@@ -174,7 +174,7 @@ template <typename MemManager,
           std::size_t Size,
           ExceptionGuarantee Eg,
           bool IsMoveOnly>
-    requires(Size >= sizeof(void*)) class StaticStorage {
+    requires(Size >= sizeof(void*)) class Woid {
   private:
     template <typename T>
     inline static constexpr bool kIsBig
@@ -186,11 +186,10 @@ template <typename MemManager,
     inline static constexpr auto exceptionGuarantee = Eg;
 
     template <typename T>
-    explicit StaticStorage(T&& t)
-          : StaticStorage(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
+    explicit Woid(T&& t) : Woid(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
 
     template <typename T, typename... Args>
-    StaticStorage(std::in_place_type_t<T>, Args... args) {
+    explicit Woid(std::in_place_type_t<T>, Args... args) {
         if constexpr (kIsBig<T>) {
             static constinit auto mm = mmDynamicMaker(kTypeTag<T>);
             this->mm = &mm;
@@ -202,15 +201,15 @@ template <typename MemManager,
             new (ptr()) T(std::forward<Args>(args)...);
         }
     }
-    StaticStorage(const StaticStorage& other)
+    Woid(const Woid& other)
         requires(!IsMoveOnly)
           : mm(other.mm) {
         mm->cpy(const_cast<void*>(other.ptr()), ptr());
     }
-    StaticStorage& operator=(const StaticStorage& other)
+    Woid& operator=(const Woid& other)
         requires(!IsMoveOnly) {
         if constexpr (Eg == ExceptionGuarantee::STRONG) {
-            *this = StaticStorage{other};
+            *this = Woid{other};
         } else {
             if (mm != nullptr)
                 mm->del(ptr());
@@ -221,11 +220,11 @@ template <typename MemManager,
         }
         return *this;
     }
-    StaticStorage(StaticStorage&& other) noexcept(Eg != ExceptionGuarantee::BASIC) : mm(other.mm) {
+    Woid(Woid&& other) noexcept(Eg != ExceptionGuarantee::BASIC) : mm(other.mm) {
         mm->move(other.ptr(), ptr());
         other.mm = nullptr;
     }
-    StaticStorage& operator=(StaticStorage&& other) noexcept(Eg != ExceptionGuarantee::BASIC) {
+    Woid& operator=(Woid&& other) noexcept(Eg != ExceptionGuarantee::BASIC) {
         if (mm != nullptr)
             mm->del(ptr());
         if constexpr (Eg == ExceptionGuarantee::BASIC)
@@ -235,7 +234,7 @@ template <typename MemManager,
         other.mm = nullptr;
         return *this;
     }
-    ~StaticStorage() {
+    ~Woid() {
         if (mm != nullptr)
             mm->del(ptr());
     }
@@ -276,7 +275,7 @@ struct Deleter {
     constexpr Deleter() : deletePtr(nullptr) {}
 
     template <typename T>
-    Deleter(TypeTag<T>) : deletePtr(+[](void* ptr) { delete static_cast<T*>(ptr); }) {}
+    explicit Deleter(TypeTag<T>) : deletePtr(+[](void* ptr) { delete static_cast<T*>(ptr); }) {}
 
     void del(void* p) const { std::invoke(deletePtr, p); }
 
@@ -326,35 +325,35 @@ decltype(auto) any_cast(Storage&& s) {
 } // namespace detail
 
 template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
-using AnyOnePtr = detail::StaticStorage<detail::MemManagerOnePtr,
-                                        detail::mkMemManagerOnePtrStatic,
-                                        detail::mkMemManagerOnePtrDynamic,
-                                        Size,
-                                        Eg,
-                                        /*IsMoveOnly=*/true>;
+using AnyOnePtr = detail::Woid<detail::MemManagerOnePtr,
+                               detail::mkMemManagerOnePtrStatic,
+                               detail::mkMemManagerOnePtrDynamic,
+                               Size,
+                               Eg,
+                               /*IsMoveOnly=*/true>;
 
 template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
-using AnyTwoPtrs = detail::StaticStorage<detail::MemManagerTwoPtrs,
-                                         detail::mkMemManagerTwoPtrsStatic,
-                                         detail::mkMemManagerTwoPtrsDynamic,
-                                         Size,
-                                         Eg,
-                                         /*IsMoveOnly=*/true>;
+using AnyTwoPtrs = detail::Woid<detail::MemManagerTwoPtrs,
+                                detail::mkMemManagerTwoPtrsStatic,
+                                detail::mkMemManagerTwoPtrsDynamic,
+                                Size,
+                                Eg,
+                                /*IsMoveOnly=*/true>;
 
 template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
-using AnyThreePtrs = detail::StaticStorage<detail::MemManagerThreePtrs,
-                                           detail::mkMemManagerThreePtrsStatic,
-                                           detail::mkMemManagerThreePtrsDynamic,
-                                           Size,
-                                           Eg,
-                                           /*IsMoveOnly=*/false>;
+using AnyThreePtrs = detail::Woid<detail::MemManagerThreePtrs,
+                                  detail::mkMemManagerThreePtrsStatic,
+                                  detail::mkMemManagerThreePtrsDynamic,
+                                  Size,
+                                  Eg,
+                                  /*IsMoveOnly=*/false>;
 
 template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
-using AnyOnePtrCpy = detail::StaticStorage<detail::MemManagerOnePtrCpy,
-                                           detail::mkMemManagerOnePtrCpyStatic,
-                                           detail::mkMemManagerOnePtrCpyDynamic,
-                                           Size,
-                                           Eg,
-                                           /*IsMoveOnly=*/false>;
+using AnyOnePtrCpy = detail::Woid<detail::MemManagerOnePtrCpy,
+                                  detail::mkMemManagerOnePtrCpyStatic,
+                                  detail::mkMemManagerOnePtrCpyDynamic,
+                                  Size,
+                                  Eg,
+                                  /*IsMoveOnly=*/false>;
 
 } // namespace woid
