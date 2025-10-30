@@ -256,7 +256,7 @@ TYPED_TEST(MoveTestCase, canGetByRefRef) {
     using Value = TypeParam::Value;
     {
         Storage storage(Value{kInt});
-        auto value = any_cast<Value&&>(storage);
+        auto value = any_cast<Value&&>(std::move(storage));
         ASSERT_EQ(value.i, kInt);
     }
 
@@ -270,7 +270,7 @@ TYPED_TEST(MoveTestCase, canMoveAssignToMovedFrom) {
         Storage storage{Value{42}};
         Storage unused{std::move(storage)};
         storage = Storage{Value{kInt}};
-        auto value = any_cast<Value&&>(storage);
+        auto value = any_cast<Value&&>(std::move(storage));
         ASSERT_EQ(value.i, kInt);
     }
 
@@ -326,7 +326,7 @@ TYPED_TEST(CopyTypesCopyStorageTestCase, canCopyAssignToMovedFrom) {
         Storage unused{std::move(storage)};
         Storage other{Value{kInt}};
         storage = other;
-        auto value = any_cast<Value&&>(storage);
+        auto value = any_cast<Value&&>(std::move(storage));
         ASSERT_EQ(value.i, kInt);
     }
 

@@ -242,7 +242,15 @@ template <typename MemManager,
 
     template <typename T, typename Self>
     T get(this Self&& self) {
+        constexpr static bool isConst = std::is_const_v<Self>;
+        constexpr static bool isRef = std::is_lvalue_reference_v<Self> && !isConst;
+        constexpr static bool isConstRef = std::is_lvalue_reference_v<Self> && isConst;
+        constexpr static bool isRefRef = std::is_rvalue_reference_v<Self>;
         using TnoRef = std::remove_reference_t<T>;
+        static_assert(!isRef || std::is_constructible_v<T, TnoRef&>);
+        static_assert(!isConstRef || std::is_constructible_v<T, const TnoRef&>);
+        static_assert(!isRefRef || std::is_constructible_v<T, TnoRef>);
+
         auto p = const_cast<void*>(std::forward<Self>(self).ptr());
         if constexpr (kIsBig<TnoRef>) {
             p = *static_cast<void**>(p);
