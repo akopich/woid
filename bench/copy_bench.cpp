@@ -11,7 +11,7 @@ struct Copy {
     T t;
 
     template <typename... Args>
-    Copy(Args&&... args) : t{std::forward<Args>(args)...} {}
+    explicit Copy(Args&&... args) : t{std::forward<Args>(args)...} {}
 
     Copy(const Copy&) = default;
     Copy& operator=(const Copy&) = default;
@@ -35,7 +35,7 @@ static void benchVectorConstructionAndSort(benchmark::State& state) {
                     | std::views::transform(
                         [](const ValueType& i) { return CA{std::in_place_type<ValueType>, i}; })
                     | std::ranges::to<std::vector>();
-        std::sort(anys.begin(), anys.end(), [](const CA& a, const CA& b) {
+        std::sort(anys.begin(), anys.end(), [](CA a, CA b) {
             return any_cast<ValueType>(a.t) < any_cast<ValueType>(b.t);
         });
         benchmark::ClobberMemory();
