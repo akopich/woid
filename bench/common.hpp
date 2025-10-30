@@ -39,9 +39,24 @@ struct NonNoThrowMoveConstructibleInt {
     ~NonNoThrowMoveConstructibleInt() = default;
 };
 
-inline bool operator<(const bench_common::NonNoThrowMoveConstructibleInt& a,
-                      const bench_common::NonNoThrowMoveConstructibleInt& b) {
+static_assert(!std::is_nothrow_move_constructible_v<bench_common::NonNoThrowMoveConstructibleInt>);
+
+inline bool operator<(const NonNoThrowMoveConstructibleInt& a,
+                      const NonNoThrowMoveConstructibleInt& b) {
     return a.x < b.x;
 }
+
+struct Int128 {
+    uint64_t a;
+    uint64_t b;
+    Int128() {}
+    Int128(int x) : a(x), b(x) {}
+};
+
+inline bool operator<(const Int128& a, const Int128& b) {
+    return std::pair{a.a, a.b} < std::pair{b.a, b.b};
+}
+
+static_assert(alignof(Int128) == alignof(void*));
 
 } // namespace bench_common

@@ -102,21 +102,9 @@ static auto benchVectorConstructionInt = benchVectorConstructionAndSort<Any, int
 template <typename Any>
 static auto benchVectorConstructionInt64 = benchVectorConstructionAndSort<Any, std::uint64_t>;
 
-struct Int128 {
-    uint64_t a;
-    uint64_t b;
-    Int128() {}
-    Int128(int x) : a(x), b(x) {}
-};
-
-bool operator<(const Int128& a, const Int128& b) { return a.a < b.a; }
-
-static_assert(alignof(Int128) == alignof(void*));
-
 template <typename Any>
-static auto benchVectorConstructionInt128 = benchVectorConstructionAndSort<Any, Int128>;
-
-static_assert(!std::is_nothrow_move_constructible_v<bench_common::NonNoThrowMoveConstructibleInt>);
+static auto benchVectorConstructionInt128
+    = benchVectorConstructionAndSort<Any, bench_common::Int128>;
 
 template <typename Any>
 static auto benchVectorConstructionThrowInt
