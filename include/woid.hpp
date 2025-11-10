@@ -177,8 +177,11 @@ template <auto mmStaticMaker,
           bool IsMoveOnly>
     requires(Size >= sizeof(void*)) class Woid {
   private:
-    using MemManager = decltype(mmStaticMaker(kTypeTag<int>));
-    static_assert(std::is_same_v<MemManager, decltype(mmDynamicMaker(kTypeTag<int>))>);
+    template <auto mmMaker>
+    using GetMemManager = decltype(mmMaker(kTypeTag<int>));
+
+    using MemManager = GetMemManager<mmStaticMaker>;
+    static_assert(std::is_same_v<MemManager, GetMemManager<mmStaticMaker>>);
 
     template <typename T>
     inline static constexpr bool kIsBig

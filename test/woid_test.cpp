@@ -70,16 +70,17 @@ constexpr auto mkAny = [](auto args) {
     return hana::type_c<T<Size, IsSafe, Aligment>>;
 };
 
-auto make_instantiations = [](auto Transformer) {
+template <template <auto...> typename Any>
+static constexpr auto make_instantiations() {
     return hana::transform(
         hana::cartesian_product(hana::make_tuple(StaticStorageSizes, IsExcptSafe, Alignments)),
-        Transformer);
+        mkAny<Any>);
 };
 
-constexpr auto AnyOnePtrsInsts = make_instantiations(mkAny<AnyOnePtr>);
-constexpr auto AnyTwoPtrsInsts = make_instantiations(mkAny<AnyTwoPtrs>);
-constexpr auto AnyThreePtrsInsts = make_instantiations(mkAny<AnyThreePtrs>);
-constexpr auto AnyOnePtrCpyInsts = make_instantiations(mkAny<AnyOnePtrCpy>);
+constexpr auto AnyOnePtrsInsts = make_instantiations<AnyOnePtr>();
+constexpr auto AnyTwoPtrsInsts = make_instantiations<AnyTwoPtrs>();
+constexpr auto AnyThreePtrsInsts = make_instantiations<AnyThreePtrs>();
+constexpr auto AnyOnePtrCpyInsts = make_instantiations<AnyOnePtrCpy>();
 
 constexpr auto MoveOnlyStorageTypes = hana::append(hana::concat(AnyOnePtrsInsts, AnyTwoPtrsInsts),
                                                    hana::type_c<detail::DynamicStorage>);
