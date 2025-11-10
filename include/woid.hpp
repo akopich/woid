@@ -53,48 +53,49 @@ struct MemManagerThreePtrs : MemManagerTwoPtrs {
 };
 
 template <typename T>
-constexpr inline auto delStatic = [](void* ptr) { static_cast<T*>(ptr)->~T(); };
+constexpr inline auto delStatic = [](void* ptr) static { static_cast<T*>(ptr)->~T(); };
 
 template <typename T>
-constexpr inline auto movStatic = [](void* src, void* dst) {
+constexpr inline auto movStatic = [](void* src, void* dst) static {
     new (dst) T(std::move(*static_cast<T*>(src)));
     static_cast<T*>(src)->~T();
 };
 
 template <typename T>
-constexpr inline auto cpyStatic = [](void* src, void* dst) { new (dst) T(*static_cast<T*>(src)); };
+constexpr inline auto cpyStatic
+    = [](void* src, void* dst) static { new (dst) T(*static_cast<T*>(src)); };
 
-constexpr inline auto mkMemManagerTwoPtrsStatic = []<typename T>(TypeTag<T>) consteval {
+constexpr inline auto mkMemManagerTwoPtrsStatic = []<typename T>(TypeTag<T>) consteval static {
     return MemManagerTwoPtrs(delStatic<T>, movStatic<T>);
 };
 
-constexpr inline auto mkMemManagerThreePtrsStatic = []<typename T>(TypeTag<T>) consteval {
+constexpr inline auto mkMemManagerThreePtrsStatic = []<typename T>(TypeTag<T>) consteval static {
     return MemManagerThreePtrs{{delStatic<T>, movStatic<T>}, cpyStatic<T>};
 };
 
 template <typename T>
-constexpr inline auto delDynamic = [](void* ptr) { delete *static_cast<T**>(ptr); };
+constexpr inline auto delDynamic = [](void* ptr) static { delete *static_cast<T**>(ptr); };
 
 template <typename T>
-constexpr inline auto movDynamic = [](void* src, void* dst) {
+constexpr inline auto movDynamic = [](void* src, void* dst) static {
     *static_cast<T**>(dst) = *static_cast<T**>(src);
     *static_cast<T**>(src) = nullptr;
 };
 
 template <typename T>
-constexpr inline auto cpyDynamic = [](void* src, void* dst) {
+constexpr inline auto cpyDynamic = [](void* src, void* dst) static {
     auto* newPtr = new T(**static_cast<T**>(src));
     *static_cast<T**>(dst) = newPtr;
 };
 
-constexpr inline auto mkMemManagerTwoPtrsDynamic = []<typename T>(TypeTag<T>) consteval {
+constexpr inline auto mkMemManagerTwoPtrsDynamic = []<typename T>(TypeTag<T>) consteval static {
     return MemManagerTwoPtrs{
         delDynamic<T>,
         movDynamic<T>,
     };
 };
 
-constexpr inline auto mkMemManagerThreePtrsDynamic = []<typename T>(TypeTag<T>) consteval {
+constexpr inline auto mkMemManagerThreePtrsDynamic = []<typename T>(TypeTag<T>) consteval static {
     return MemManagerThreePtrs{{delDynamic<T>, movDynamic<T>}, cpyDynamic<T>};
 };
 
@@ -118,7 +119,7 @@ struct MemManagerOnePtrCpy : MemManagerOnePtr {
 
 template <typename Del, typename Mov>
 consteval auto mkMemManagerOnePtrFromLambdas(Del, Mov) {
-    return MemManagerOnePtr{+[](Op op, void* ptr, void* dst) -> void {
+    return MemManagerOnePtr{+[](Op op, void* ptr, void* dst) static -> void {
         SUPPRESS_SWITCH_WARNING_START
         switch (op) {
             case DEL:
@@ -133,7 +134,7 @@ consteval auto mkMemManagerOnePtrFromLambdas(Del, Mov) {
 
 template <typename Del, typename Mov, typename Cpy>
 consteval auto mkMemManagerOnePtrCpyFromLambdas(Del, Mov, Cpy) {
-    return MemManagerOnePtrCpy{{+[](Op op, void* ptr, void* dst) -> void {
+    return MemManagerOnePtrCpy{{+[](Op op, void* ptr, void* dst) static -> void {
         switch (op) {
             case DEL:
                 Del{}(ptr);
@@ -147,19 +148,19 @@ consteval auto mkMemManagerOnePtrCpyFromLambdas(Del, Mov, Cpy) {
     }}};
 }
 
-constexpr inline auto mkMemManagerOnePtrStatic = []<typename T>(TypeTag<T>) consteval {
+constexpr inline auto mkMemManagerOnePtrStatic = []<typename T>(TypeTag<T>) consteval static {
     return mkMemManagerOnePtrFromLambdas(delStatic<T>, movStatic<T>);
 };
 
-constexpr inline auto mkMemManagerOnePtrDynamic = []<typename T>(TypeTag<T>) consteval {
+constexpr inline auto mkMemManagerOnePtrDynamic = []<typename T>(TypeTag<T>) consteval static {
     return mkMemManagerOnePtrFromLambdas(delDynamic<T>, movDynamic<T>);
 };
 
-constexpr inline auto mkMemManagerOnePtrCpyStatic = []<typename T>(TypeTag<T>) consteval {
+constexpr inline auto mkMemManagerOnePtrCpyStatic = []<typename T>(TypeTag<T>) consteval static {
     return mkMemManagerOnePtrCpyFromLambdas(delStatic<T>, movStatic<T>, cpyStatic<T>);
 };
 
-constexpr inline auto mkMemManagerOnePtrCpyDynamic = []<typename T>(TypeTag<T>) consteval {
+constexpr inline auto mkMemManagerOnePtrCpyDynamic = []<typename T>(TypeTag<T>) consteval static {
     return mkMemManagerOnePtrCpyFromLambdas(delDynamic<T>, movDynamic<T>, cpyDynamic<T>);
 };
 
@@ -277,7 +278,8 @@ struct Deleter {
     constexpr Deleter() : deletePtr(nullptr) {}
 
     template <typename T>
-    explicit Deleter(TypeTag<T>) : deletePtr(+[](void* ptr) { delete static_cast<T*>(ptr); }) {}
+    explicit Deleter(TypeTag<T>)
+          : deletePtr(+[](void* ptr) static { delete static_cast<T*>(ptr); }) {}
 
     void del(void* p) const { std::invoke(deletePtr, p); }
 
