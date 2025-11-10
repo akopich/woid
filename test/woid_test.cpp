@@ -59,28 +59,27 @@ constexpr auto IsExcptSafe = hana::tuple_c<ExceptionGuarantee,
                                            ExceptionGuarantee::NONE,
                                            ExceptionGuarantee::BASIC,
                                            ExceptionGuarantee::STRONG>;
-constexpr auto StaticStorageSizes = hana::tuple_c<int, 8, 80>;
+constexpr auto StaticStorageSizes = hana::tuple_c<size_t, 8, 80>;
+constexpr auto Alignments = hana::tuple_c<size_t, sizeof(void*), alignof(__int128)>;
 
 template <template <auto...> typename T>
-constexpr auto mkAny = [](auto T_pair) {
-    constexpr int Size = hana::at_c<0>(T_pair).value;
-    constexpr ExceptionGuarantee IsSafe = hana::at_c<1>(T_pair).value;
-    return hana::type_c<T<Size, IsSafe>>;
+constexpr auto mkAny = [](auto args) {
+    constexpr size_t Size = hana::at_c<0>(args).value;
+    constexpr ExceptionGuarantee IsSafe = hana::at_c<1>(args).value;
+    constexpr size_t Aligment = hana::at_c<2>(args).value;
+    return hana::type_c<T<Size, IsSafe, Aligment>>;
 };
 
-auto make_instantiations = [](auto StorageSizes, auto ExcptSafe, auto Transformer) {
-    return hana::transform(hana::cartesian_product(hana::make_tuple(StorageSizes, ExcptSafe)),
-                           Transformer);
+auto make_instantiations = [](auto Transformer) {
+    return hana::transform(
+        hana::cartesian_product(hana::make_tuple(StaticStorageSizes, IsExcptSafe, Alignments)),
+        Transformer);
 };
 
-constexpr auto AnyOnePtrsInsts
-    = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyOnePtr>);
-constexpr auto AnyTwoPtrsInsts
-    = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyTwoPtrs>);
-constexpr auto AnyThreePtrsInsts
-    = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyThreePtrs>);
-constexpr auto AnyOnePtrCpyInsts
-    = make_instantiations(StaticStorageSizes, IsExcptSafe, mkAny<AnyOnePtrCpy>);
+constexpr auto AnyOnePtrsInsts = make_instantiations(mkAny<AnyOnePtr>);
+constexpr auto AnyTwoPtrsInsts = make_instantiations(mkAny<AnyTwoPtrs>);
+constexpr auto AnyThreePtrsInsts = make_instantiations(mkAny<AnyThreePtrs>);
+constexpr auto AnyOnePtrCpyInsts = make_instantiations(mkAny<AnyOnePtrCpy>);
 
 constexpr auto MoveOnlyStorageTypes = hana::append(hana::concat(AnyOnePtrsInsts, AnyTwoPtrsInsts),
                                                    hana::type_c<detail::DynamicStorage>);

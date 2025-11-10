@@ -183,7 +183,7 @@ template <auto mmStaticMaker,
     template <typename T>
     inline static constexpr bool kIsBig
         = sizeof(T) > Size
-          || alignof(T) > alignof(void*)
+          || alignof(T) > Alignment
           || (Eg == ExceptionGuarantee::STRONG && !std::is_nothrow_move_constructible_v<T>);
 
   public:
