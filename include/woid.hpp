@@ -172,6 +172,7 @@ T star(Void* p) {
 template <auto mmStaticMaker,
           auto mmDynamicMaker,
           std::size_t Size,
+          std::size_t Alignment,
           ExceptionGuarantee Eg,
           bool IsMoveOnly>
     requires(Size >= sizeof(void*)) class Woid {
@@ -261,7 +262,7 @@ template <auto mmStaticMaker,
     }
 
   private:
-    alignas(void*) std::array<char, Size> storage;
+    alignas(Alignment) std::array<char, Size> storage;
     MemManager* mm;
 
     template <typename Self>
@@ -328,31 +329,43 @@ decltype(auto) any_cast(Storage&& s) {
 }
 } // namespace detail
 
-template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
+template <size_t Size,
+          ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
+          std::size_t Alignment = sizeof(void*)>
 using AnyOnePtr = detail::Woid<detail::mkMemManagerOnePtrStatic,
                                detail::mkMemManagerOnePtrDynamic,
                                Size,
+                               Alignment,
                                Eg,
                                /*IsMoveOnly=*/true>;
 
-template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
+template <size_t Size,
+          ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
+          std::size_t Alignment = sizeof(void*)>
 using AnyTwoPtrs = detail::Woid<detail::mkMemManagerTwoPtrsStatic,
                                 detail::mkMemManagerTwoPtrsDynamic,
                                 Size,
+                                Alignment,
                                 Eg,
                                 /*IsMoveOnly=*/true>;
 
-template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
+template <size_t Size,
+          ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
+          std::size_t Alignment = sizeof(void*)>
 using AnyThreePtrs = detail::Woid<detail::mkMemManagerThreePtrsStatic,
                                   detail::mkMemManagerThreePtrsDynamic,
                                   Size,
+                                  Alignment,
                                   Eg,
                                   /*IsMoveOnly=*/false>;
 
-template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
+template <size_t Size,
+          ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
+          std::size_t Alignment = sizeof(void*)>
 using AnyOnePtrCpy = detail::Woid<detail::mkMemManagerOnePtrCpyStatic,
                                   detail::mkMemManagerOnePtrCpyDynamic,
                                   Size,
+                                  Alignment,
                                   Eg,
                                   /*IsMoveOnly=*/false>;
 
