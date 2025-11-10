@@ -168,14 +168,16 @@ T star(Void* p) {
     return static_cast<T>(*static_cast<RetainConstPtr<Self, std::remove_reference_t<T>>>(p));
 }
 
-template <typename MemManager,
-          auto mmStaticMaker,
+template <auto mmStaticMaker,
           auto mmDynamicMaker,
           std::size_t Size,
           ExceptionGuarantee Eg,
           bool IsMoveOnly>
     requires(Size >= sizeof(void*)) class Woid {
   private:
+    using MemManager = decltype(mmStaticMaker(kTypeTag<int>));
+    static_assert(std::is_same_v<MemManager, decltype(mmDynamicMaker(kTypeTag<int>))>);
+
     template <typename T>
     inline static constexpr bool kIsBig
         = sizeof(T) > Size
@@ -325,32 +327,28 @@ decltype(auto) any_cast(Storage&& s) {
 } // namespace detail
 
 template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
-using AnyOnePtr = detail::Woid<detail::MemManagerOnePtr,
-                               detail::mkMemManagerOnePtrStatic,
+using AnyOnePtr = detail::Woid<detail::mkMemManagerOnePtrStatic,
                                detail::mkMemManagerOnePtrDynamic,
                                Size,
                                Eg,
                                /*IsMoveOnly=*/true>;
 
 template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
-using AnyTwoPtrs = detail::Woid<detail::MemManagerTwoPtrs,
-                                detail::mkMemManagerTwoPtrsStatic,
+using AnyTwoPtrs = detail::Woid<detail::mkMemManagerTwoPtrsStatic,
                                 detail::mkMemManagerTwoPtrsDynamic,
                                 Size,
                                 Eg,
                                 /*IsMoveOnly=*/true>;
 
 template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
-using AnyThreePtrs = detail::Woid<detail::MemManagerThreePtrs,
-                                  detail::mkMemManagerThreePtrsStatic,
+using AnyThreePtrs = detail::Woid<detail::mkMemManagerThreePtrsStatic,
                                   detail::mkMemManagerThreePtrsDynamic,
                                   Size,
                                   Eg,
                                   /*IsMoveOnly=*/false>;
 
 template <size_t Size, ExceptionGuarantee Eg = ExceptionGuarantee::NONE>
-using AnyOnePtrCpy = detail::Woid<detail::MemManagerOnePtrCpy,
-                                  detail::mkMemManagerOnePtrCpyStatic,
+using AnyOnePtrCpy = detail::Woid<detail::mkMemManagerOnePtrCpyStatic,
                                   detail::mkMemManagerOnePtrCpyDynamic,
                                   Size,
                                   Eg,
