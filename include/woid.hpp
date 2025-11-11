@@ -334,77 +334,45 @@ template <typename T, typename Storage>
 decltype(auto) any_cast(Storage&& s) {
     return std::forward<Storage>(s).template get<T>();
 }
+
+template <Copy C, FunPtr F>
+struct MemManagerSelector;
+
+template <>
+struct MemManagerSelector<Copy::DISABLED, FunPtr::COMBINED> {
+    static constexpr auto Static = detail::mkMemManagerOnePtrStatic;
+    static constexpr auto Dynamic = detail::mkMemManagerOnePtrDynamic;
+};
+
+template <>
+struct MemManagerSelector<Copy::DISABLED, FunPtr::DEDICATED> {
+    static constexpr auto Static = detail::mkMemManagerTwoPtrsStatic;
+    static constexpr auto Dynamic = detail::mkMemManagerTwoPtrsDynamic;
+};
+
+template <>
+struct MemManagerSelector<Copy::ENABLED, FunPtr::COMBINED> {
+    static constexpr auto Static = detail::mkMemManagerOnePtrCpyStatic;
+    static constexpr auto Dynamic = detail::mkMemManagerOnePtrCpyDynamic;
+};
+
+template <>
+struct MemManagerSelector<Copy::ENABLED, FunPtr::DEDICATED> {
+    static constexpr auto Static = detail::mkMemManagerThreePtrsStatic;
+    static constexpr auto Dynamic = detail::mkMemManagerThreePtrsDynamic;
+};
+
 } // namespace detail
 
 template <size_t Size,
-          Copy copy = Copy::ENABLED,
+          Copy kCopy = Copy::ENABLED,
           ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
-          size_t Alignment = sizeof(void*),
-          FunPtr funPtr = FunPtr::COMBINED>
-class Any;
-
-template <size_t Size, ExceptionGuarantee Eg, size_t Alignment>
-class Any<Size, Copy::DISABLED, Eg, Alignment, FunPtr::COMBINED>
-      : public detail::Woid<detail::mkMemManagerOnePtrStatic,
-                            detail::mkMemManagerOnePtrDynamic,
-                            Size,
-                            Alignment,
-                            Eg,
-                            Copy::DISABLED> {
-    using detail::Woid<detail::mkMemManagerOnePtrStatic,
-                       detail::mkMemManagerOnePtrDynamic,
-                       Size,
-                       Alignment,
-                       Eg,
-                       Copy::DISABLED>::Woid;
-};
-
-template <size_t Size, ExceptionGuarantee Eg, size_t Alignment>
-class Any<Size, Copy::DISABLED, Eg, Alignment, FunPtr::DEDICATED>
-      : public detail::Woid<detail::mkMemManagerTwoPtrsStatic,
-                            detail::mkMemManagerTwoPtrsDynamic,
-                            Size,
-                            Alignment,
-                            Eg,
-                            Copy::DISABLED> {
-    using detail::Woid<detail::mkMemManagerTwoPtrsStatic,
-                       detail::mkMemManagerTwoPtrsDynamic,
-                       Size,
-                       Alignment,
-                       Eg,
-                       Copy::DISABLED>::Woid;
-};
-
-template <size_t Size, ExceptionGuarantee Eg, size_t Alignment>
-class Any<Size, Copy::ENABLED, Eg, Alignment, FunPtr::COMBINED>
-      : public detail::Woid<detail::mkMemManagerOnePtrCpyStatic,
-                            detail::mkMemManagerOnePtrCpyDynamic,
-                            Size,
-                            Alignment,
-                            Eg,
-                            Copy::ENABLED> {
-    using detail::Woid<detail::mkMemManagerOnePtrCpyStatic,
-                       detail::mkMemManagerOnePtrCpyDynamic,
-                       Size,
-                       Alignment,
-                       Eg,
-                       Copy::ENABLED>::Woid;
-};
-
-template <size_t Size, ExceptionGuarantee Eg, size_t Alignment>
-class Any<Size, Copy::ENABLED, Eg, Alignment, FunPtr::DEDICATED>
-      : public detail::Woid<detail::mkMemManagerThreePtrsStatic,
-                            detail::mkMemManagerThreePtrsDynamic,
-                            Size,
-                            Alignment,
-                            Eg,
-                            Copy::ENABLED> {
-    using detail::Woid<detail::mkMemManagerThreePtrsStatic,
-                       detail::mkMemManagerThreePtrsDynamic,
-                       Size,
-                       Alignment,
-                       Eg,
-                       Copy::ENABLED>::Woid;
-};
-
+          size_t Alignment = alignof(void*),
+          FunPtr kFunPtr = FunPtr::COMBINED>
+using Any = detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
+                         detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
+                         Size,
+                         Alignment,
+                         Eg,
+                         kCopy>;
 } // namespace woid

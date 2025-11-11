@@ -7,27 +7,27 @@
 using namespace woid;
 
 template <typename T>
-struct Copy {
+struct CopyOnly {
     T t;
 
     template <typename... Args>
-    explicit Copy(Args&&... args) : t{std::forward<Args>(args)...} {}
+    explicit CopyOnly(Args&&... args) : t{std::forward<Args>(args)...} {}
 
-    Copy(const Copy&) = default;
-    Copy& operator=(const Copy&) = default;
+    CopyOnly(const CopyOnly&) = default;
+    CopyOnly& operator=(const CopyOnly&) = default;
 
-    Copy(Copy&& other) : Copy(static_cast<const Copy&>(other)) {}
-    Copy& operator=(const Copy&& other) {
-        *this = static_cast<const Copy&>(other);
+    CopyOnly(CopyOnly&& other) : CopyOnly(static_cast<const CopyOnly&>(other)) {}
+    CopyOnly& operator=(const CopyOnly&& other) {
+        *this = static_cast<const CopyOnly&>(other);
         return *this;
     }
 
-    ~Copy() = default;
+    ~CopyOnly() = default;
 };
 
 template <typename Any, typename ValueType>
 static void benchVectorConstructionAndSort(benchmark::State& state) {
-    using CA = Copy<Any>;
+    using CA = CopyOnly<Any>;
     auto ints = bench_common::makeRandomVector<ValueType>(state.range(0));
 
     for (auto _ : state) {
@@ -61,35 +61,57 @@ static auto benchVectorConstructionThrowInt
 constexpr auto setRange
     = [](auto* bench) -> void { bench->MinWarmUpTime(0.1)->RangeMultiplier(2)->Range(1, N); };
 
-BENCHMARK(benchVectorConstructionInt<AnyOnePtrCpy<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<AnyThreePtrs<8, ExceptionGuarantee::NONE>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<AnyOnePtrCpy<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<AnyThreePtrs<8, ExceptionGuarantee::BASIC>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<AnyOnePtrCpy<8, ExceptionGuarantee::STRONG>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<AnyThreePtrs<8, ExceptionGuarantee::STRONG>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
+    ->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
+    ->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::BASIC, alignof(void*), FunPtr::COMBINED>>)
+    ->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::BASIC, alignof(void*), FunPtr::DEDICATED>>)
+    ->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::STRONG, alignof(void*), FunPtr::COMBINED>>)
+    ->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::STRONG, alignof(void*), FunPtr::DEDICATED>>)
+    ->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt<std::any>)->Apply(setRange);
 
-BENCHMARK(benchVectorConstructionInt128<AnyOnePtrCpy<8, ExceptionGuarantee::NONE>>)
+BENCHMARK(benchVectorConstructionInt128<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<AnyOnePtrCpy<16, ExceptionGuarantee::NONE>>)
+BENCHMARK(benchVectorConstructionInt128<
+              Any<16, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<AnyThreePtrs<8, ExceptionGuarantee::NONE>>)
+BENCHMARK(benchVectorConstructionInt128<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<AnyThreePtrs<16, ExceptionGuarantee::NONE>>)
+BENCHMARK(benchVectorConstructionInt128<
+              Any<16, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt128<std::any>)->Apply(setRange);
 
-BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtrCpy<8, ExceptionGuarantee::NONE>>)
+BENCHMARK(benchVectorConstructionThrowInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyThreePtrs<8, ExceptionGuarantee::NONE>>)
+BENCHMARK(benchVectorConstructionThrowInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtrCpy<8, ExceptionGuarantee::BASIC>>)
+BENCHMARK(benchVectorConstructionThrowInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::BASIC, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyThreePtrs<8, ExceptionGuarantee::BASIC>>)
+BENCHMARK(benchVectorConstructionThrowInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::BASIC, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyOnePtrCpy<8, ExceptionGuarantee::STRONG>>)
+BENCHMARK(benchVectorConstructionThrowInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::STRONG, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<AnyThreePtrs<8, ExceptionGuarantee::STRONG>>)
+BENCHMARK(benchVectorConstructionThrowInt<
+              Any<8, Copy::ENABLED, ExceptionGuarantee::STRONG, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionThrowInt<std::any>)->Apply(setRange);
 
