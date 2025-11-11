@@ -55,6 +55,7 @@ struct C {
 
 inline constexpr int kInt = 13;
 
+constexpr auto FunPtrTypes = hana::tuple_c<FunPtr, FunPtr::COMBINED, FunPtr::DEDICATED>;
 constexpr auto IsExcptSafe = hana::tuple_c<ExceptionGuarantee,
                                            ExceptionGuarantee::NONE,
                                            ExceptionGuarantee::BASIC,
@@ -64,27 +65,25 @@ constexpr auto Alignments = hana::tuple_c<size_t, sizeof(void*), alignof(__int12
 
 template <template <auto...> typename T>
 constexpr auto mkAny = [](auto args) {
-    constexpr size_t Size = hana::at_c<0>(args).value;
-    constexpr ExceptionGuarantee IsSafe = hana::at_c<1>(args).value;
-    constexpr size_t Aligment = hana::at_c<2>(args).value;
-    return hana::type_c<T<Size, IsSafe, Aligment>>;
+    constexpr auto Size = hana::at_c<0>(args).value;
+    constexpr auto IsCopyEnabled = hana::at_c<1>(args).value;
+    constexpr auto IsSafe = hana::at_c<2>(args).value;
+    constexpr auto Aligment = hana::at_c<3>(args).value;
+    constexpr auto FunPtrType = hana::at_c<4>(args).value;
+    return hana::type_c<T<Size, IsCopyEnabled, IsSafe, Aligment, FunPtrType>>;
 };
 
-template <template <auto...> typename Any>
+template <Copy copy, template <auto...> typename Any>
 static constexpr auto make_instantiations() {
     return hana::transform(
-        hana::cartesian_product(hana::make_tuple(StaticStorageSizes, IsExcptSafe, Alignments)),
+        hana::cartesian_product(hana::make_tuple(
+            StaticStorageSizes, hana::tuple_c<Copy, copy>, IsExcptSafe, Alignments, FunPtrTypes)),
         mkAny<Any>);
 };
 
-constexpr auto AnyOnePtrsInsts = make_instantiations<AnyOnePtr>();
-constexpr auto AnyTwoPtrsInsts = make_instantiations<AnyTwoPtrs>();
-constexpr auto AnyThreePtrsInsts = make_instantiations<AnyThreePtrs>();
-constexpr auto AnyOnePtrCpyInsts = make_instantiations<AnyOnePtrCpy>();
-
-constexpr auto MoveOnlyStorageTypes = hana::append(hana::concat(AnyOnePtrsInsts, AnyTwoPtrsInsts),
+constexpr auto MoveOnlyStorageTypes = hana::append(make_instantiations<Copy::DISABLED, Any>(),
                                                    hana::type_c<detail::DynamicStorage>);
-constexpr auto CopyStorageTypes = hana::concat(AnyThreePtrsInsts, AnyOnePtrCpyInsts);
+constexpr auto CopyStorageTypes = make_instantiations<Copy::ENABLED, Any>();
 
 static_assert(alignof(__int128) > alignof(void*));     // make sure int128 has big alignment
 static_assert(alignof(std::int32_t) < alignof(void*)); // make sure int32 has small alignment
