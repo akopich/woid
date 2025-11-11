@@ -253,6 +253,9 @@ def group_benchmark_results(results: List) -> Dict[str, Dict[str, Results]]:
 
     return final_dict
 
+def mk_container_label(name: str) -> str:
+    return name.replace(', alignof(void*)', '')
+
 def plot_benchmark_comparison(benchmark_name: str, container_data: dict[str, Results]):
     BASE_CONTAINER = "std::any"
 
@@ -266,6 +269,10 @@ def plot_benchmark_comparison(benchmark_name: str, container_data: dict[str, Res
     # Creates a figure and a set of subplots.
     fig, ax = plt.subplots(figsize=(10, 6))
 
+    num_containers = len(container_data) - 1
+    colors = plt.colormaps['tab20' if num_containers > 10 else 'tab10'].resampled(num_containers)
+
+    i = 0
     for container_name, results_obj in container_data.items():
         if container_name == BASE_CONTAINER:
             continue
@@ -279,7 +286,8 @@ def plot_benchmark_comparison(benchmark_name: str, container_data: dict[str, Res
         speedups = base_times / results_obj.times
 
         # Plot sizes vs. speedup
-        ax.plot(results_obj.sizes, speedups, marker='o', linestyle='-', label=container_name)
+        ax.plot(results_obj.sizes, speedups, marker='o', linestyle='-', label=mk_container_label(container_name), color=colors(i))
+        i += 1
 
     # Set plot labels and title
     ax.set_xlabel("Vector size")
