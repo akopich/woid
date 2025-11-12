@@ -228,9 +228,14 @@ TYPED_TEST(MoveTestCase, canSwapHeterogeneously) {
         Storage storage(Value{kInt});
         {
             Storage otherStorage(int{42});
+
             std::swap(storage, otherStorage);
             ASSERT_EQ(any_cast<Value&>(otherStorage).i, kInt);
             ASSERT_EQ(any_cast<int>(storage), 42);
+
+            std::swap(storage, otherStorage);
+            ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
+            ASSERT_EQ(any_cast<int>(otherStorage), 42);
         }
     }
     ASSERT_EQ(Value::cnt, 0);
