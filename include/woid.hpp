@@ -16,6 +16,9 @@ enum class ExceptionGuarantee { NONE, BASIC, STRONG };
 enum class Copy { ENABLED, DISABLED };
 enum class FunPtr { COMBINED, DEDICATED };
 
+struct TransferOwnership {};
+inline TransferOwnership kTransferOwnership{};
+
 namespace detail {
 
 template <typename T>
@@ -195,9 +198,19 @@ template <auto mmStaticMaker,
 
   public:
     inline static constexpr auto exceptionGuarantee = Eg;
+    inline static constexpr auto kStaticStorageSize = Size;
+    inline static constexpr auto kStaticStorageAlignment = Alignment;
 
     template <typename T>
     explicit Woid(T&& t) : Woid(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
+
+    template <typename T>
+    explicit Woid(TransferOwnership, T* tPtr)
+        requires(kIsBig<T> && !std::is_const_v<T>) {
+        static constinit auto mm = mmDynamicMaker(kTypeTag<T>);
+        this->mm = &mm;
+        *static_cast<void**>(ptr()) = tPtr;
+    }
 
     template <typename T, typename... Args>
     explicit Woid(std::in_place_type_t<T>, Args... args) {
@@ -302,6 +315,8 @@ class DynamicStorage {
 
   public:
     inline static constexpr auto exceptionGuarantee = ExceptionGuarantee::STRONG;
+    inline static constexpr auto kStaticStorageSize = 0;
+    inline static constexpr auto kStaticStorageAlignment = 0;
 
     constexpr DynamicStorage() : storage(nullptr) {}
 
@@ -310,6 +325,10 @@ class DynamicStorage {
 
     template <typename T, typename TnoRef = std::remove_cvref_t<T>>
     DynamicStorage(T&& t) : storage{new TnoRef(std::forward<T>(t)), Deleter{kTypeTag<TnoRef>}} {}
+
+    template <typename T>
+    DynamicStorage(TransferOwnership, T* t)
+          : storage{t, Deleter{kTypeTag<std::remove_cvref_t<T>>}} {}
 
     DynamicStorage& operator=(DynamicStorage&& t) noexcept {
         storage = std::move(t.storage);

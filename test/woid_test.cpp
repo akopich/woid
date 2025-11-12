@@ -113,6 +113,14 @@ constexpr auto MoveTestCases
 constexpr auto CopyTypesTestCases
     = hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCases);
 
+constexpr auto MoveTestCasesWithBigObject = hana::filter(MoveTestCases, [](auto testCase) {
+    using TC = decltype(testCase)::type;
+    using Storage = TC::Storage;
+    using Value = TC::Value;
+    return hana::bool_c<(Storage::kStaticStorageSize < sizeof(Value)
+                         || Storage::kStaticStorageAlignment < alignof(Value))>;
+});
+
 template <auto HanaTuple>
 using AsTuple = decltype(hana::unpack(HanaTuple, hana::template_<testing::Types>))::type;
 
@@ -133,6 +141,11 @@ struct MoveTestCase : testing::Test {};
 TYPED_TEST_SUITE(MoveTestCase, AsTuple<MoveTestCases>);
 
 template <typename T>
+struct MoveTestCaseWithBigObject : testing::Test {};
+
+TYPED_TEST_SUITE(MoveTestCaseWithBigObject, AsTuple<MoveTestCasesWithBigObject>);
+
+template <typename T>
 struct CopyTypesTestCase : BaseTestCase<T> {};
 
 TYPED_TEST_SUITE(CopyTypesTestCase, AsTuple<CopyTypesTestCases>);
@@ -150,6 +163,17 @@ TYPED_TEST(CopyTypesTestCase, canInstantiateFromRef) {
     using Value = TypeParam::Value;
     {
         Storage storage(static_cast<const Value&>(kInt));
+        ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
+    }
+    ASSERT_EQ(TypeParam::Value::cnt, 0);
+}
+
+TYPED_TEST(MoveTestCaseWithBigObject, canInstantiateFromPtr) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
+    {
+        auto* ptr = new Value{kInt};
+        Storage storage(kTransferOwnership, ptr);
         ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
     }
     ASSERT_EQ(TypeParam::Value::cnt, 0);
