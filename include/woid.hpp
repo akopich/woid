@@ -174,6 +174,9 @@ T star(Void* p) {
     return static_cast<T>(*static_cast<RetainConstPtr<Self, std::remove_reference_t<T>>>(p));
 }
 
+template <auto mmMaker>
+using GetMemManager = decltype(mmMaker(kTypeTag<int>));
+
 template <auto mmStaticMaker,
           auto mmDynamicMaker,
           std::size_t Size,
@@ -182,10 +185,7 @@ template <auto mmStaticMaker,
           Copy copy>
     requires(Size >= sizeof(void*)) class Woid {
   private:
-    static constexpr bool IsMoveOnly = copy == Copy::DISABLED;
-
-    template <auto mmMaker>
-    using GetMemManager = decltype(mmMaker(kTypeTag<int>));
+    static constexpr bool kIsMoveOnly = copy == Copy::DISABLED;
 
     using MemManager = GetMemManager<mmStaticMaker>;
     static_assert(std::is_same_v<MemManager, GetMemManager<mmStaticMaker>>);
@@ -197,7 +197,7 @@ template <auto mmStaticMaker,
           || (Eg == ExceptionGuarantee::STRONG && !std::is_nothrow_move_constructible_v<T>);
 
   public:
-    inline static constexpr auto exceptionGuarantee = Eg;
+    inline static constexpr auto kExceptionGuarantee = Eg;
     inline static constexpr auto kStaticStorageSize = Size;
     inline static constexpr auto kStaticStorageAlignment = Alignment;
 
@@ -226,12 +226,12 @@ template <auto mmStaticMaker,
         }
     }
     Woid(const Woid& other)
-        requires(!IsMoveOnly)
+        requires(!kIsMoveOnly)
           : mm(other.mm) {
         mm->cpy(const_cast<void*>(other.ptr()), ptr());
     }
     Woid& operator=(const Woid& other)
-        requires(!IsMoveOnly) {
+        requires(!kIsMoveOnly) {
         if constexpr (Eg == ExceptionGuarantee::STRONG) {
             *this = Woid{other};
         } else {
@@ -314,7 +314,7 @@ class DynamicStorage {
     std::unique_ptr<void, Deleter> storage;
 
   public:
-    inline static constexpr auto exceptionGuarantee = ExceptionGuarantee::STRONG;
+    inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
     inline static constexpr auto kStaticStorageSize = 0;
     inline static constexpr auto kStaticStorageAlignment = 0;
 

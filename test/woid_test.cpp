@@ -63,14 +63,14 @@ constexpr auto IsExcptSafe = hana::tuple_c<ExceptionGuarantee,
 constexpr auto StaticStorageSizes = hana::tuple_c<size_t, 8, 80>;
 constexpr auto Alignments = hana::tuple_c<size_t, sizeof(void*), alignof(__int128)>;
 
+template <template <auto...> typename T, size_t... Is>
+constexpr auto mkAnyImpl(auto args, std::index_sequence<Is...>) {
+    return hana::type_c<T<hana::at_c<Is>(args).value...>>;
+}
+
 template <template <auto...> typename T>
 constexpr auto mkAny = [](auto args) {
-    constexpr auto Size = hana::at_c<0>(args).value;
-    constexpr auto IsCopyEnabled = hana::at_c<1>(args).value;
-    constexpr auto IsSafe = hana::at_c<2>(args).value;
-    constexpr auto Aligment = hana::at_c<3>(args).value;
-    constexpr auto FunPtrType = hana::at_c<4>(args).value;
-    return hana::type_c<T<Size, IsCopyEnabled, IsSafe, Aligment, FunPtrType>>;
+    return mkAnyImpl<T>(args, std::make_index_sequence<hana::size(args).value>{});
 };
 
 template <Copy copy, template <auto...> typename Any>
@@ -397,7 +397,7 @@ template <ExceptionGuarantee eg>
 constexpr auto filterByEg(auto storages) {
     return hana::filter(storages, [&](auto testCase) {
         using Storage = decltype(testCase)::type;
-        return hana::bool_c < Storage::exceptionGuarantee == eg > ;
+        return hana::bool_c < Storage::kExceptionGuarantee == eg > ;
     });
 }
 
