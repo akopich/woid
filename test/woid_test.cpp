@@ -6,6 +6,14 @@
 #include <gtest/gtest-typed-test.h>
 #include <gtest/gtest.h>
 
+#define SUPPRESS_SELF_MOVE_START                                                                   \
+    _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wself-move\"")
+#define SUPPRESS_SELF_MOVE_END _Pragma("GCC diagnostic pop")
+
+#define SUPPRESS_SELF_COPY_START                                                                   \
+    _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wself-assign-overloaded\"")
+#define SUPPRESS_SELF_COPY_END _Pragma("GCC diagnostic pop")
+
 namespace hana = boost::hana;
 using namespace woid;
 
@@ -63,22 +71,20 @@ constexpr auto IsExcptSafe = hana::tuple_c<ExceptionGuarantee,
 constexpr auto StaticStorageSizes = hana::tuple_c<size_t, 8, 80>;
 constexpr auto Alignments = hana::tuple_c<size_t, sizeof(void*), alignof(__int128)>;
 
-template <template <auto...> typename T, size_t... Is>
+template <size_t... Is>
 constexpr auto mkAnyImpl(auto args, std::index_sequence<Is...>) {
-    return hana::type_c<T<hana::at_c<Is>(args).value...>>;
+    return hana::type_c<Any<hana::at_c<Is>(args).value...>>;
 }
 
-template <template <auto...> typename T>
-constexpr auto mkAny = [](auto args) {
-    return mkAnyImpl<T>(args, std::make_index_sequence<hana::size(args).value>{});
-};
+constexpr auto mkAny
+    = [](auto args) { return mkAnyImpl(args, std::make_index_sequence<hana::size(args).value>{}); };
 
 template <Copy copy, template <auto...> typename Any>
 static constexpr auto make_instantiations() {
     return hana::transform(
         hana::cartesian_product(hana::make_tuple(
             StaticStorageSizes, hana::tuple_c<Copy, copy>, IsExcptSafe, Alignments, FunPtrTypes)),
-        mkAny<Any>);
+        mkAny);
 };
 
 constexpr auto MoveOnlyStorageTypes = hana::append(make_instantiations<Copy::DISABLED, Any>(),
@@ -222,7 +228,9 @@ TYPED_TEST(MoveTestCase, canSelfMoveAssign) {
     {
         Storage storage(Value{kInt});
         {
+            SUPPRESS_SELF_MOVE_START
             storage = std::move(storage);
+            SUPPRESS_SELF_MOVE_END
             ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
         }
     }
@@ -364,7 +372,9 @@ TYPED_TEST(CopyTypesCopyStorageTestCase, canSelfCopyAssign) {
     using Value = TypeParam::Value;
     {
         Storage storage(Value{kInt});
+        SUPPRESS_SELF_COPY_START
         storage = storage;
+        SUPPRESS_SELF_COPY_END
         ASSERT_EQ(any_cast<Value>(storage).i, kInt);
         ASSERT_EQ(Value::cnt, 1);
     }

@@ -392,10 +392,17 @@ template <size_t Size,
           ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
           size_t Alignment = alignof(void*),
           FunPtr kFunPtr = FunPtr::COMBINED>
-using Any = detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
-                         detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
-                         Size,
-                         Alignment,
-                         Eg,
-                         kCopy>;
+struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
+                                 detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
+                                 Size,
+                                 Alignment,
+                                 Eg,
+                                 kCopy> {
+    using detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
+                       detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
+                       Size,
+                       Alignment,
+                       Eg,
+                       kCopy>::Woid;
+};
 } // namespace woid
