@@ -235,6 +235,8 @@ template <auto mmStaticMaker,
         if constexpr (Eg == ExceptionGuarantee::STRONG) {
             *this = Woid{other};
         } else {
+            if (this == &other)
+                return *this;
             if (mm != nullptr)
                 mm->del(ptr());
             if constexpr (Eg == ExceptionGuarantee::BASIC)
@@ -249,6 +251,8 @@ template <auto mmStaticMaker,
         other.mm = nullptr;
     }
     Woid& operator=(Woid&& other) noexcept(Eg != ExceptionGuarantee::BASIC) {
+        if (this == &other)
+            return *this;
         if (mm != nullptr)
             mm->del(ptr());
         if constexpr (Eg == ExceptionGuarantee::BASIC)

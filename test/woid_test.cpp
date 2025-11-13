@@ -216,6 +216,19 @@ TYPED_TEST(MoveTestCase, canInstantiateAndMove) {
     ASSERT_EQ(Value::cnt, 0);
 }
 
+TYPED_TEST(MoveTestCase, canSelfMoveAssign) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
+    {
+        Storage storage(Value{kInt});
+        {
+            storage = std::move(storage);
+            ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
+        }
+    }
+    ASSERT_EQ(Value::cnt, 0);
+}
+
 TYPED_TEST(MoveTestCase, canMoveAssign) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
@@ -341,6 +354,19 @@ TYPED_TEST(CopyTypesCopyStorageTestCase, canCopyAssign) {
         ASSERT_EQ(any_cast<Value>(storage).i, kInt);
         ASSERT_EQ(any_cast<Value>(other).i, kInt);
         ASSERT_EQ(Value::cnt, 2);
+    }
+
+    ASSERT_EQ(Value::cnt, 0);
+}
+
+TYPED_TEST(CopyTypesCopyStorageTestCase, canSelfCopyAssign) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
+    {
+        Storage storage(Value{kInt});
+        storage = storage;
+        ASSERT_EQ(any_cast<Value>(storage).i, kInt);
+        ASSERT_EQ(Value::cnt, 1);
     }
 
     ASSERT_EQ(Value::cnt, 0);
