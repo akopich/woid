@@ -79,7 +79,7 @@ constexpr auto mkAnyImpl(auto args, std::index_sequence<Is...>) {
 constexpr auto mkAny
     = [](auto args) { return mkAnyImpl(args, std::make_index_sequence<hana::size(args).value>{}); };
 
-template <Copy copy, template <auto...> typename Any>
+template <Copy copy>
 static constexpr auto make_instantiations() {
     return hana::transform(
         hana::cartesian_product(hana::make_tuple(
@@ -87,9 +87,9 @@ static constexpr auto make_instantiations() {
         mkAny);
 };
 
-constexpr auto MoveOnlyStorageTypes = hana::append(make_instantiations<Copy::DISABLED, Any>(),
-                                                   hana::type_c<detail::DynamicStorage>);
-constexpr auto CopyStorageTypes = make_instantiations<Copy::ENABLED, Any>();
+constexpr auto MoveOnlyStorageTypes
+    = hana::append(make_instantiations<Copy::DISABLED>(), hana::type_c<detail::DynamicStorage>);
+constexpr auto CopyStorageTypes = make_instantiations<Copy::ENABLED>();
 
 static_assert(alignof(__int128) > alignof(void*));     // make sure int128 has big alignment
 static_assert(alignof(std::int32_t) < alignof(void*)); // make sure int32 has small alignment

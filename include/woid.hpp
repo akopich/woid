@@ -78,8 +78,8 @@ constexpr inline auto mkMemManagerThreePtrsStatic = []<typename T>(TypeTag<T>) c
     return MemManagerThreePtrs{{delStatic<T>, movStatic<T>}, cpyStatic<T>};
 };
 
-template <typename T>
-constexpr inline auto delDynamic = [](void* ptr) static { delete *static_cast<T**>(ptr); };
+template <typename T, typename Alloc>
+constexpr inline auto delDynamic = [](void* ptr) static { Alloc::del(*static_cast<T**>(ptr)); };
 
 template <typename T>
 constexpr inline auto movDynamic = [](void* src, void* dst) static {
@@ -87,22 +87,24 @@ constexpr inline auto movDynamic = [](void* src, void* dst) static {
     *static_cast<T**>(src) = nullptr;
 };
 
-template <typename T>
+template <typename T, typename Alloc>
 constexpr inline auto cpyDynamic = [](void* src, void* dst) static {
-    auto* newPtr = new T(**static_cast<T**>(src));
+    auto* newPtr = Alloc::template make<T>(**static_cast<T**>(src));
     *static_cast<T**>(dst) = newPtr;
 };
 
-constexpr inline auto mkMemManagerTwoPtrsDynamic = []<typename T>(TypeTag<T>) consteval static {
-    return MemManagerTwoPtrs{
-        delDynamic<T>,
-        movDynamic<T>,
-    };
-};
+constexpr inline auto mkMemManagerTwoPtrsDynamic
+    = []<typename T, typename Alloc>(TypeTag<T>, TypeTag<Alloc>) consteval static {
+          return MemManagerTwoPtrs{
+              delDynamic<T, Alloc>,
+              movDynamic<T>,
+          };
+      };
 
-constexpr inline auto mkMemManagerThreePtrsDynamic = []<typename T>(TypeTag<T>) consteval static {
-    return MemManagerThreePtrs{{delDynamic<T>, movDynamic<T>}, cpyDynamic<T>};
-};
+constexpr inline auto mkMemManagerThreePtrsDynamic
+    = []<typename T, typename Alloc>(TypeTag<T>, TypeTag<Alloc>) consteval static {
+          return MemManagerThreePtrs{{delDynamic<T, Alloc>, movDynamic<T>}, cpyDynamic<T, Alloc>};
+      };
 
 enum Op { DEL, MOV, CPY };
 
@@ -157,17 +159,20 @@ constexpr inline auto mkMemManagerOnePtrStatic = []<typename T>(TypeTag<T>) cons
     return mkMemManagerOnePtrFromLambdas(delStatic<T>, movStatic<T>);
 };
 
-constexpr inline auto mkMemManagerOnePtrDynamic = []<typename T>(TypeTag<T>) consteval static {
-    return mkMemManagerOnePtrFromLambdas(delDynamic<T>, movDynamic<T>);
-};
+constexpr inline auto mkMemManagerOnePtrDynamic
+    = []<typename T, typename Alloc>(TypeTag<T>, TypeTag<Alloc>) consteval static {
+          return mkMemManagerOnePtrFromLambdas(delDynamic<T, Alloc>, movDynamic<T>);
+      };
 
 constexpr inline auto mkMemManagerOnePtrCpyStatic = []<typename T>(TypeTag<T>) consteval static {
     return mkMemManagerOnePtrCpyFromLambdas(delStatic<T>, movStatic<T>, cpyStatic<T>);
 };
 
-constexpr inline auto mkMemManagerOnePtrCpyDynamic = []<typename T>(TypeTag<T>) consteval static {
-    return mkMemManagerOnePtrCpyFromLambdas(delDynamic<T>, movDynamic<T>, cpyDynamic<T>);
-};
+constexpr inline auto mkMemManagerOnePtrCpyDynamic
+    = []<typename T, typename Alloc>(TypeTag<T>, TypeTag<Alloc>) consteval static {
+          return mkMemManagerOnePtrCpyFromLambdas(
+              delDynamic<T, Alloc>, movDynamic<T>, cpyDynamic<T, Alloc>);
+      };
 
 template <typename T, typename Self, typename Void>
 T star(Void* p) {
@@ -182,7 +187,8 @@ template <auto mmStaticMaker,
           std::size_t Size,
           std::size_t Alignment,
           ExceptionGuarantee Eg,
-          Copy copy>
+          Copy copy,
+          typename Alloc>
     requires(Size >= sizeof(void*)) class Woid {
   private:
     static constexpr bool kIsMoveOnly = copy == Copy::DISABLED;
@@ -207,7 +213,7 @@ template <auto mmStaticMaker,
     template <typename T>
     explicit Woid(TransferOwnership, T* tPtr)
         requires(kIsBig<T> && !std::is_const_v<T>) {
-        static constinit auto mm = mmDynamicMaker(kTypeTag<T>);
+        static constinit auto mm = mmDynamicMaker(kTypeTag<T>, kTypeTag<Alloc>);
         this->mm = &mm;
         *static_cast<void**>(ptr()) = tPtr;
     }
@@ -215,7 +221,7 @@ template <auto mmStaticMaker,
     template <typename T, typename... Args>
     explicit Woid(std::in_place_type_t<T>, Args... args) {
         if constexpr (kIsBig<T>) {
-            static constinit auto mm = mmDynamicMaker(kTypeTag<T>);
+            static constinit auto mm = mmDynamicMaker(kTypeTag<T>, kTypeTag<Alloc>);
             this->mm = &mm;
             auto* obj = new T(std::forward<Args>(args)...);
             *static_cast<void**>(ptr()) = obj;
@@ -385,24 +391,39 @@ struct MemManagerSelector<Copy::ENABLED, FunPtr::DEDICATED> {
     static constexpr auto Dynamic = detail::mkMemManagerThreePtrsDynamic;
 };
 
+struct DefaultAllocator {
+    template <typename T>
+    static T* make(auto&&... args) {
+        return new T(std::forward<decltype(args)>(args)...);
+    }
+
+    template <typename T>
+    static void del(T* obj) {
+        delete obj;
+    }
+};
+
 } // namespace detail
 
 template <size_t Size,
           Copy kCopy = Copy::ENABLED,
           ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
           size_t Alignment = alignof(void*),
-          FunPtr kFunPtr = FunPtr::COMBINED>
+          FunPtr kFunPtr = FunPtr::COMBINED,
+          typename Alloc = detail::DefaultAllocator>
 struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
                                  detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
                                  Size,
                                  Alignment,
                                  Eg,
-                                 kCopy> {
+                                 kCopy,
+                                 Alloc> {
     using detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
                        detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
                        Size,
                        Alignment,
                        Eg,
-                       kCopy>::Woid;
+                       kCopy,
+                       Alloc>::Woid;
 };
 } // namespace woid
