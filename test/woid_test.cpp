@@ -63,6 +63,8 @@ struct C {
 
 inline constexpr int kInt = 13;
 
+using AlternativeAllocator = detail::OneChunkAllocator<1024>;
+constexpr auto Allocators = hana::tuple_t<DefaultAllocator, AlternativeAllocator>;
 constexpr auto FunPtrTypes = hana::tuple_c<FunPtr, FunPtr::COMBINED, FunPtr::DEDICATED>;
 constexpr auto IsExcptSafe = hana::tuple_c<ExceptionGuarantee,
                                            ExceptionGuarantee::NONE,
@@ -73,22 +75,28 @@ constexpr auto Alignments = hana::tuple_c<size_t, sizeof(void*), alignof(__int12
 
 template <size_t... Is>
 constexpr auto mkAnyImpl(auto args, std::index_sequence<Is...>) {
-    return hana::type_c<Any<hana::at_c<Is>(args).value...>>;
+    return hana::type_c<Any<hana::at_c<Is>(args).value...,
+                            typename decltype(+hana::at_c<sizeof...(Is)>(args))::type>>;
 }
 
-constexpr auto mkAny
-    = [](auto args) { return mkAnyImpl(args, std::make_index_sequence<hana::size(args).value>{}); };
+constexpr auto mkAny = [](auto args) {
+    return mkAnyImpl(args, std::make_index_sequence<hana::size(args).value - 1>{});
+};
 
 template <Copy copy>
 static constexpr auto make_instantiations() {
-    return hana::transform(
-        hana::cartesian_product(hana::make_tuple(
-            StaticStorageSizes, hana::tuple_c<Copy, copy>, IsExcptSafe, Alignments, FunPtrTypes)),
-        mkAny);
+    return hana::transform(hana::cartesian_product(hana::make_tuple(StaticStorageSizes,
+                                                                    hana::tuple_c<Copy, copy>,
+                                                                    IsExcptSafe,
+                                                                    Alignments,
+                                                                    FunPtrTypes,
+                                                                    Allocators)),
+                           mkAny);
 };
 
-constexpr auto MoveOnlyStorageTypes
-    = hana::append(make_instantiations<Copy::DISABLED>(), hana::type_c<detail::DynamicStorage>);
+constexpr auto MoveOnlyStorageTypes = hana::concat(
+    make_instantiations<Copy::DISABLED>(),
+    hana::tuple_t<detail::DynamicStorage<>, detail::DynamicStorage<AlternativeAllocator>>);
 constexpr auto CopyStorageTypes = make_instantiations<Copy::ENABLED>();
 
 static_assert(alignof(__int128) > alignof(void*));     // make sure int128 has big alignment
@@ -138,16 +146,20 @@ struct ValueCntNuller : testing::Test {
     ~ValueCntNuller() { Value::cnt = 0; }
 };
 
-template <typename T>
-struct BaseTestCase : ValueCntNuller<typename T::Value> {};
+struct AlternativeAllocatorResetter {
+    ~AlternativeAllocatorResetter() { AlternativeAllocator::reset(); }
+};
 
 template <typename T>
-struct MoveTestCase : testing::Test {};
+struct BaseTestCase : ValueCntNuller<typename T::Value>, AlternativeAllocatorResetter {};
+
+template <typename T>
+struct MoveTestCase : BaseTestCase<T> {};
 
 TYPED_TEST_SUITE(MoveTestCase, AsTuple<MoveTestCases>);
 
 template <typename T>
-struct MoveTestCaseWithBigObject : testing::Test {};
+struct MoveTestCaseWithBigObject : testing::Test, AlternativeAllocatorResetter {};
 
 TYPED_TEST_SUITE(MoveTestCaseWithBigObject, AsTuple<MoveTestCasesWithBigObject>);
 
@@ -157,7 +169,7 @@ struct CopyTypesTestCase : BaseTestCase<T> {};
 TYPED_TEST_SUITE(CopyTypesTestCase, AsTuple<CopyTypesTestCases>);
 
 template <typename T>
-struct StorageType : testing::Test {};
+struct StorageType : testing::Test, AlternativeAllocatorResetter {};
 TYPED_TEST_SUITE(StorageType, AsTuple<AllStorages>);
 
 template <typename T>
@@ -177,8 +189,9 @@ TYPED_TEST(CopyTypesTestCase, canInstantiateFromRef) {
 TYPED_TEST(MoveTestCaseWithBigObject, canInstantiateFromPtr) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
+    using Alloc = Storage::Alloc;
     {
-        auto* ptr = new Value{kInt};
+        auto* ptr = Alloc::template make<Value>(kInt);
         Storage storage(kTransferOwnership, ptr);
         ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
     }
@@ -444,7 +457,7 @@ constexpr auto BasicEgCopyableStorages = filterByEg<ExceptionGuarantee::BASIC>(C
 constexpr auto StrongEgCopyableStorages = filterByEg<ExceptionGuarantee::STRONG>(CopyStorageTypes);
 
 template <typename T>
-struct EgTest : ValueCntNuller<Bomb> {};
+struct EgTest : ValueCntNuller<Bomb>, AlternativeAllocatorResetter {};
 
 template <typename T>
 struct BasicEgMovableStorage : EgTest<T> {};

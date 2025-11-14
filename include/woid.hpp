@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+#include <cstdlib>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <type_traits>
@@ -18,6 +20,18 @@ enum class FunPtr { COMBINED, DEDICATED };
 
 struct TransferOwnership {};
 inline TransferOwnership kTransferOwnership{};
+
+struct DefaultAllocator {
+    template <typename T>
+    static T* make(auto&&... args) {
+        return new T(std::forward<decltype(args)>(args)...);
+    }
+
+    template <typename T>
+    static void del(T* obj) noexcept {
+        delete obj;
+    }
+};
 
 namespace detail {
 
@@ -188,7 +202,7 @@ template <auto mmStaticMaker,
           std::size_t Alignment,
           ExceptionGuarantee Eg,
           Copy copy,
-          typename Alloc>
+          typename Alloc_>
     requires(Size >= sizeof(void*)) class Woid {
   private:
     static constexpr bool kIsMoveOnly = copy == Copy::DISABLED;
@@ -206,6 +220,7 @@ template <auto mmStaticMaker,
     inline static constexpr auto kExceptionGuarantee = Eg;
     inline static constexpr auto kStaticStorageSize = Size;
     inline static constexpr auto kStaticStorageAlignment = Alignment;
+    using Alloc = Alloc_;
 
     template <typename T>
     explicit Woid(T&& t) : Woid(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
@@ -223,7 +238,7 @@ template <auto mmStaticMaker,
         if constexpr (kIsBig<T>) {
             static constinit auto mm = mmDynamicMaker(kTypeTag<T>, kTypeTag<Alloc>);
             this->mm = &mm;
-            auto* obj = new T(std::forward<Args>(args)...);
+            auto* obj = Alloc::template make<T>(std::forward<Args>(args)...);
             *static_cast<void**>(ptr()) = obj;
         } else {
             static constinit auto mm = mmStaticMaker(kTypeTag<T>);
@@ -301,6 +316,7 @@ template <auto mmStaticMaker,
     }
 };
 
+template <typename Alloc>
 struct Deleter {
   private:
     using DeletePtr = void (*)(void*);
@@ -310,7 +326,7 @@ struct Deleter {
 
     template <typename T>
     explicit Deleter(TypeTag<T>)
-          : deletePtr(+[](void* ptr) static { delete static_cast<T*>(ptr); }) {}
+          : deletePtr(+[](void* ptr) static { Alloc::del(static_cast<T*>(ptr)); }) {}
 
     void del(void* p) const { std::invoke(deletePtr, p); }
 
@@ -319,14 +335,16 @@ struct Deleter {
     DeletePtr deletePtr;
 };
 
+template <typename Alloc_ = DefaultAllocator>
 class DynamicStorage {
   private:
-    std::unique_ptr<void, Deleter> storage;
+    std::unique_ptr<void, Deleter<Alloc_>> storage;
 
   public:
     inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
     inline static constexpr auto kStaticStorageSize = 0;
     inline static constexpr auto kStaticStorageAlignment = 0;
+    using Alloc = Alloc_;
 
     constexpr DynamicStorage() : storage(nullptr) {}
 
@@ -334,11 +352,13 @@ class DynamicStorage {
     DynamicStorage& operator=(const DynamicStorage&) = delete;
 
     template <typename T, typename TnoRef = std::remove_cvref_t<T>>
-    DynamicStorage(T&& t) : storage{new TnoRef(std::forward<T>(t)), Deleter{kTypeTag<TnoRef>}} {}
+    DynamicStorage(T&& t)
+          : storage{Alloc::template make<TnoRef>(std::forward<T>(t)),
+                    Deleter<Alloc_>{kTypeTag<TnoRef>}} {}
 
     template <typename T>
     DynamicStorage(TransferOwnership, T* t)
-          : storage{t, Deleter{kTypeTag<std::remove_cvref_t<T>>}} {}
+          : storage{t, Deleter<Alloc_>{kTypeTag<std::remove_cvref_t<T>>}} {}
 
     DynamicStorage& operator=(DynamicStorage&& t) noexcept {
         storage = std::move(t.storage);
@@ -349,7 +369,8 @@ class DynamicStorage {
 
     template <typename T, typename... Args>
     DynamicStorage(std::in_place_type_t<T>, Args&&... args)
-          : storage{new T(std::forward<Args>(args)...), Deleter{kTypeTag<T>}} {}
+          : storage{Alloc::template make<T>(std::forward<Args>(args)...),
+                    Deleter<Alloc_>{kTypeTag<T>}} {}
 
     ~DynamicStorage() = default;
 
@@ -391,16 +412,40 @@ struct MemManagerSelector<Copy::ENABLED, FunPtr::DEDICATED> {
     static constexpr auto Dynamic = detail::mkMemManagerThreePtrsDynamic;
 };
 
-struct DefaultAllocator {
+template <size_t Size>
+struct OneChunkAllocator {
     template <typename T>
     static T* make(auto&&... args) {
-        return new T(std::forward<decltype(args)>(args)...);
+        if (std::align(alignof(T), sizeof(T), current, sizeLeft)) {
+            if (sizeLeft < sizeof(T))
+                std::terminate();
+            auto* obj = new (current) T(std::forward<decltype(args)>(args)...);
+            sizeLeft -= sizeof(T);
+            current = static_cast<char*>(current) + sizeof(T);
+            return obj;
+        }
+        std::terminate();
     }
 
     template <typename T>
-    static void del(T* obj) {
-        delete obj;
+    static void del(T* obj) noexcept {
+        obj->~T();
     }
+
+    static void reset() {
+        current = storage;
+        sizeLeft = Size;
+    }
+
+  private:
+    static void cleanup() { delete[] storage; }
+    inline static char* storage = [] {
+        char* result = new char[Size];
+        std::atexit(&OneChunkAllocator::cleanup);
+        return result;
+    }();
+    inline static void* current = storage;
+    inline static size_t sizeLeft = Size;
 };
 
 } // namespace detail
@@ -410,7 +455,7 @@ template <size_t Size,
           ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
           size_t Alignment = alignof(void*),
           FunPtr kFunPtr = FunPtr::COMBINED,
-          typename Alloc = detail::DefaultAllocator>
+          typename Alloc = DefaultAllocator>
 struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
                                  detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
                                  Size,
