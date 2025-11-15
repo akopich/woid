@@ -416,35 +416,39 @@ template <size_t Size>
 struct OneChunkAllocator {
     template <typename T>
     static T* make(auto&&... args) {
-        if (std::align(alignof(T), sizeof(T), current, sizeLeft)) {
-            auto* obj = new (current) T(std::forward<decltype(args)>(args)...);
-            sizeLeft -= sizeof(T);
-            current = static_cast<char*>(current) + sizeof(T);
+        if (std::align(alignof(T), sizeof(T), arena.current, arena.sizeLeft)) {
+            auto* obj = new (arena.current) T(std::forward<decltype(args)>(args)...);
+            arena.sizeLeft -= sizeof(T);
+            arena.current = static_cast<char*>(arena.current) + sizeof(T);
             return obj;
         }
         std::terminate();
     }
+
+    static void reset() { arena.reset(); }
 
     template <typename T>
     static void del(T* obj) noexcept {
         obj->~T();
     }
 
-    static void reset() {
-        current = storage;
-        sizeLeft = Size;
-    }
-
   private:
-    static void cleanup() { delete[] storage; }
-    inline static void* current{};
-    inline static char* storage = [] {
-        char* result = new char[Size];
-        current = result;
-        std::atexit(&OneChunkAllocator::cleanup);
-        return result;
-    }();
-    inline static size_t sizeLeft = Size;
+    struct Arena {
+        Arena() : storage(new char[Size]), current(storage), sizeLeft(Size) {}
+        Arena(const Arena&) = delete;
+        Arena(Arena&&) = delete;
+        Arena& operator=(const Arena&) = delete;
+        Arena& operator=(Arena&&) = delete;
+        ~Arena() { delete[] storage; }
+        void reset() {
+            current = storage;
+            sizeLeft = Size;
+        }
+        char* storage;
+        void* current;
+        size_t sizeLeft;
+    };
+    inline static Arena arena{};
 };
 
 } // namespace detail
