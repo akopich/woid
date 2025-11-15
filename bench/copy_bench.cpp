@@ -25,6 +25,9 @@ struct CopyOnly {
     ~CopyOnly() = default;
 };
 
+static constexpr size_t N = 1 << 18;
+using Allocator = detail::OneChunkAllocator<N * sizeof(__int128) * 200>;
+
 template <typename Any, typename ValueType>
 static void benchVectorConstructionAndSort(benchmark::State& state) {
     using CA = CopyOnly<Any>;
@@ -39,6 +42,9 @@ static void benchVectorConstructionAndSort(benchmark::State& state) {
             return any_cast<ValueType>(a.t) < any_cast<ValueType>(b.t);
         });
         benchmark::ClobberMemory();
+        state.PauseTiming();
+        Allocator::reset();
+        state.ResumeTiming();
     }
 }
 
@@ -51,8 +57,6 @@ static auto benchVectorConstructionInt64 = benchVectorConstructionAndSort<Any, s
 template <typename Any>
 static auto benchVectorConstructionInt128
     = benchVectorConstructionAndSort<Any, bench_common::Int128>;
-
-static constexpr size_t N = 1 << 18;
 
 template <typename Any>
 static auto benchVectorConstructionThrowInt
@@ -81,6 +85,20 @@ BENCHMARK(benchVectorConstructionInt<
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt<std::any>)->Apply(setRange);
 
+BENCHMARK(benchVectorConstructionInt128<Any<8,
+                                            Copy::ENABLED,
+                                            ExceptionGuarantee::NONE,
+                                            alignof(void*),
+                                            FunPtr::COMBINED,
+                                            Allocator>>)
+    ->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt128<Any<8,
+                                            Copy::ENABLED,
+                                            ExceptionGuarantee::NONE,
+                                            alignof(void*),
+                                            FunPtr::DEDICATED,
+                                            Allocator>>)
+    ->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt128<
               Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);

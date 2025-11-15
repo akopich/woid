@@ -417,8 +417,6 @@ struct OneChunkAllocator {
     template <typename T>
     static T* make(auto&&... args) {
         if (std::align(alignof(T), sizeof(T), current, sizeLeft)) {
-            if (sizeLeft < sizeof(T))
-                std::terminate();
             auto* obj = new (current) T(std::forward<decltype(args)>(args)...);
             sizeLeft -= sizeof(T);
             current = static_cast<char*>(current) + sizeof(T);
@@ -439,12 +437,13 @@ struct OneChunkAllocator {
 
   private:
     static void cleanup() { delete[] storage; }
+    inline static void* current{};
     inline static char* storage = [] {
         char* result = new char[Size];
+        current = result;
         std::atexit(&OneChunkAllocator::cleanup);
         return result;
     }();
-    inline static void* current = storage;
     inline static size_t sizeLeft = Size;
 };
 

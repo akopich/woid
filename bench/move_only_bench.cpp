@@ -58,6 +58,9 @@ static void benchSwapInt(benchmark::State& state) {
     }
 }
 
+static constexpr size_t N = 1 << 18;
+using Allocator = detail::OneChunkAllocator<N * sizeof(__int128) * 2>;
+
 template <typename Any, typename ValueType>
 static void benchVectorConstructionAndSort(benchmark::State& state) {
     auto ints = bench_common::makeRandomVector<ValueType>(state.range(0));
@@ -68,6 +71,9 @@ static void benchVectorConstructionAndSort(benchmark::State& state) {
             return any_cast<ValueType>(a) < any_cast<ValueType>(b);
         });
         benchmark::ClobberMemory();
+        state.PauseTiming();
+        Allocator::reset();
+        state.ResumeTiming();
     }
 }
 
@@ -84,8 +90,6 @@ static auto benchVectorConstructionInt128
 template <typename Any>
 static auto benchVectorConstructionThrowInt
     = benchVectorConstructionAndSort<Any, bench_common::NonNoThrowMoveConstructibleInt>;
-
-static constexpr size_t N = 1 << 18;
 
 constexpr auto setRange
     = [](auto* bench) -> void { bench->MinWarmUpTime(1)->RangeMultiplier(2)->Range(1, N); };
@@ -116,6 +120,20 @@ BENCHMARK(benchVectorConstructionInt<
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt<std::any>)->Apply(setRange);
 
+BENCHMARK(benchVectorConstructionInt128<Any<8,
+                                            Copy::DISABLED,
+                                            ExceptionGuarantee::NONE,
+                                            alignof(void*),
+                                            FunPtr::COMBINED,
+                                            Allocator>>)
+    ->Apply(setRange);
+BENCHMARK(benchVectorConstructionInt128<Any<8,
+                                            Copy::DISABLED,
+                                            ExceptionGuarantee::NONE,
+                                            alignof(void*),
+                                            FunPtr::DEDICATED,
+                                            Allocator>>)
+    ->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt128<
               Any<8, Copy::DISABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
