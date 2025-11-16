@@ -451,6 +451,60 @@ struct OneChunkAllocator {
     inline static Arena arena{};
 };
 
+template <typename Storage, typename R, typename... Args>
+class FunBase {
+  protected:
+    using FunPtr = R (*)(Storage&, Args&&...);
+    std::remove_cv_t<Storage> storage;
+    FunPtr funPtr;
+
+  public:
+    template <typename F>
+    FunBase(F&& f)
+          : storage(std::forward<F>(f)), funPtr{+[](Storage& storage, Args&&... args) {
+                using FnoCv = std::remove_cvref_t<F>;
+                static constexpr bool IsConst = std::is_const_v<Storage>;
+                using FRef = std::conditional_t<IsConst, const FnoCv&, FnoCv&>;
+                if constexpr (std::is_void_v<R>) {
+                    std::invoke(any_cast<FRef>(storage), std::forward<Args>(args)...);
+                } else {
+                    return std::invoke(any_cast<FRef>(storage), std::forward<Args>(args)...);
+                }
+            }} {}
+};
+
+template <bool IsNoexcept, typename Storage, typename R, typename... Args>
+class ConstFun : public FunBase<const Storage, R, Args...> {
+  public:
+    using FunBase<const Storage, R, Args...>::FunBase;
+
+    void operator()(Args&&... args) const noexcept(IsNoexcept)
+        requires(std::is_void_v<R>) {
+        std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
+    }
+
+    decltype(auto) operator()(Args&&... args) const noexcept(IsNoexcept)
+        requires(!std::is_void_v<R>) {
+        return std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
+    }
+};
+
+template <bool IsNoexcept, typename Storage, typename R, typename... Args>
+class NonConstFun : public FunBase<Storage, R, Args...> {
+  public:
+    using FunBase<Storage, R, Args...>::FunBase;
+
+    void operator()(Args&&... args) noexcept(IsNoexcept)
+        requires(std::is_void_v<R>) {
+        std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
+    }
+
+    decltype(auto) operator()(Args&&... args) noexcept(IsNoexcept)
+        requires(!std::is_void_v<R>) {
+        return std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
+    }
+};
+
 } // namespace detail
 
 template <size_t Size,
@@ -474,4 +528,28 @@ struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Sta
                        kCopy,
                        Alloc>::Woid;
 };
+
+template <typename Storage, typename>
+struct Fun;
+
+template <typename Storage, typename... Args, typename R>
+struct Fun<Storage, R(Args...) const noexcept> : detail::ConstFun<true, Storage, R, Args...> {
+    using detail::ConstFun<true, Storage, R, Args...>::ConstFun;
+};
+
+template <typename Storage, typename... Args, typename R>
+struct Fun<Storage, R(Args...) const> : detail::ConstFun<false, Storage, R, Args...> {
+    using detail::ConstFun<false, Storage, R, Args...>::ConstFun;
+};
+
+template <typename Storage, typename... Args, typename R>
+struct Fun<Storage, R(Args...) noexcept> : detail::NonConstFun<true, Storage, R, Args...> {
+    using detail::NonConstFun<true, Storage, R, Args...>::NonConstFun;
+};
+
+template <typename Storage, typename... Args, typename R>
+struct Fun<Storage, R(Args...)> : detail::NonConstFun<false, Storage, R, Args...> {
+    using detail::NonConstFun<false, Storage, R, Args...>::NonConstFun;
+};
+
 } // namespace woid

@@ -410,6 +410,54 @@ TYPED_TEST(CopyTypesCopyStorageTestCase, canCopyAssignToMovedFrom) {
     ASSERT_EQ(Value::cnt, 0);
 }
 
+template <template <typename> typename TraitV, typename X, typename Y>
+static void checkTraitSame() {
+    static_assert(TraitV<X>::value == TraitV<Y>::value);
+}
+
+TYPED_TEST(StorageType, storagePropertiesArePropagatedToTheFun) {
+    using Storage = TypeParam;
+    using Fun = Fun<Storage, void(void) const>;
+    checkTraitSame<std::is_copy_constructible, Storage, Fun>();
+    checkTraitSame<std::is_copy_assignable, Storage, Fun>();
+    checkTraitSame<std::is_move_constructible, Storage, Fun>();
+    checkTraitSame<std::is_move_assignable, Storage, Fun>();
+    checkTraitSame<std::is_nothrow_move_constructible, Storage, Fun>();
+    checkTraitSame<std::is_nothrow_move_assignable, Storage, Fun>();
+}
+
+TYPED_TEST(StorageType, canCallConstFunction) {
+    using Storage = TypeParam;
+    auto add = [](int x, int y) { return x + y; };
+    const Fun<Storage, int(int, int) const> f{add};
+    ASSERT_EQ(f(2, 5), add(2, 5));
+}
+
+TYPED_TEST(StorageType, canCallConstVoidFunction) {
+    using Storage = TypeParam;
+    int i = 0;
+    auto setI = [&]() { i = 5; };
+    const Fun<Storage, void() const> f{setI};
+    f();
+    ASSERT_EQ(i, 5);
+}
+
+TYPED_TEST(StorageType, canCallNonConstFunction) {
+    using Storage = TypeParam;
+    auto add = [](int x, int y) mutable { return x + y; };
+    Fun<Storage, int(int, int)> f{add};
+    ASSERT_EQ(f(2, 5), add(2, 5));
+}
+
+TYPED_TEST(StorageType, canCallNonConstVoidFunction) {
+    using Storage = TypeParam;
+    int i = 0;
+    auto setI = [&]() mutable { i = 5; };
+    Fun<Storage, void()> f{setI};
+    f();
+    ASSERT_EQ(i, 5);
+}
+
 #if defined(__cpp_exceptions)
 
 class Bomb {
