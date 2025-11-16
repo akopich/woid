@@ -173,6 +173,10 @@ struct StorageType : testing::Test, AlternativeAllocatorResetter {};
 TYPED_TEST_SUITE(StorageType, AsTuple<AllStorages>);
 
 template <typename T>
+struct MoveStorageTypes : testing::Test, AlternativeAllocatorResetter {};
+TYPED_TEST_SUITE(MoveStorageTypes, AsTuple<MoveOnlyStorageTypes>);
+
+template <typename T>
 struct CopyTypesCopyStorageTestCase : BaseTestCase<T> {};
 TYPED_TEST_SUITE(CopyTypesCopyStorageTestCase, AsTuple<CopyTypesCopyStorageTestCases>);
 
@@ -424,6 +428,13 @@ TYPED_TEST(StorageType, storagePropertiesArePropagatedToTheFun) {
     checkTraitSame<std::is_move_assignable, Storage, Fun>();
     checkTraitSame<std::is_nothrow_move_constructible, Storage, Fun>();
     checkTraitSame<std::is_nothrow_move_assignable, Storage, Fun>();
+}
+
+TYPED_TEST(MoveStorageTypes, canCallConstMoveOnlyFunction) {
+    using Storage = TypeParam;
+    auto add = [uniq = std::make_unique<int>(1)](int x, int y) { return x + y; };
+    const Fun<Storage, int(int, int) const> f{std::move(add)};
+    ASSERT_EQ(f(2, 5), add(2, 5));
 }
 
 TYPED_TEST(StorageType, canCallConstFunction) {
