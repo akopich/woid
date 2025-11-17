@@ -468,14 +468,14 @@ struct OneChunkAllocator {
 template <typename Storage, typename R, typename... Args>
 class FunBase {
   protected:
-    using FunPtr = R (*)(Storage&, Args&&...);
+    using FunPtr = R (*)(Storage&, Args...);
     std::remove_cv_t<Storage> storage;
     FunPtr funPtr;
 
   public:
     template <typename F>
     explicit FunBase(F&& f)
-          : storage(std::forward<F>(f)), funPtr{+[](Storage& storage, Args&&... args) {
+          : storage(std::forward<F>(f)), funPtr{+[](Storage& storage, Args... args) {
                 using FnoCv = std::remove_cvref_t<F>;
                 static constexpr bool IsConst = std::is_const_v<Storage>;
                 using FRef = std::conditional_t<IsConst, const FnoCv&, FnoCv&>;
@@ -492,12 +492,12 @@ class ConstFun : public FunBase<const Storage, R, Args...> {
   public:
     using FunBase<const Storage, R, Args...>::FunBase;
 
-    void operator()(Args&&... args) const noexcept(IsNoexcept)
+    void operator()(Args... args) const noexcept(IsNoexcept)
         requires(std::is_void_v<R>) {
         std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
     }
 
-    decltype(auto) operator()(Args&&... args) const noexcept(IsNoexcept)
+    decltype(auto) operator()(Args... args) const noexcept(IsNoexcept)
         requires(!std::is_void_v<R>) {
         return std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
     }
@@ -508,12 +508,12 @@ class NonConstFun : public FunBase<Storage, R, Args...> {
   public:
     using FunBase<Storage, R, Args...>::FunBase;
 
-    void operator()(Args&&... args) noexcept(IsNoexcept)
+    void operator()(Args... args) noexcept(IsNoexcept)
         requires(std::is_void_v<R>) {
         std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
     }
 
-    decltype(auto) operator()(Args&&... args) noexcept(IsNoexcept)
+    decltype(auto) operator()(Args... args) noexcept(IsNoexcept)
         requires(!std::is_void_v<R>) {
         return std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
     }
