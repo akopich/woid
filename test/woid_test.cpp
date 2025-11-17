@@ -469,6 +469,34 @@ TYPED_TEST(StorageType, canCallNonConstVoidFunction) {
     ASSERT_EQ(i, 5);
 }
 
+struct Int {
+    int i;
+    int add(int d) const { return i + d; }
+    int inc(int d) {
+        i += d;
+        return i;
+    }
+};
+
+TYPED_TEST(StorageType, canCallMethod) {
+    using Storage = TypeParam;
+    Int i{3};
+
+    const Fun<Storage, int(Int*, int) const> f{&Int::inc};
+
+    ASSERT_EQ(f(&i, 5), 3 + 5);
+    ASSERT_EQ(i.i, 3 + 5);
+}
+
+TYPED_TEST(StorageType, canCallConstMethod) {
+    using Storage = TypeParam;
+    Int i{3};
+
+    const Fun<Storage, int(const Int*, int) const> f{&Int::add};
+
+    ASSERT_EQ(f(&i, 5), 3 + 5);
+}
+
 struct MoveOnlyFunctor {
     constexpr MoveOnlyFunctor() = default;
     MoveOnlyFunctor(const MoveOnlyFunctor&) = delete;
