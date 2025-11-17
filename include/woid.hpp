@@ -203,7 +203,7 @@ template <auto mmStaticMaker,
           ExceptionGuarantee Eg,
           Copy copy,
           typename Alloc_>
-    requires(Size >= sizeof(void*)) class Woid {
+    requires(Size >= sizeof(void*) && Alignment >= alignof(void*)) class Woid {
   private:
     static constexpr bool kIsMoveOnly = copy == Copy::DISABLED;
 
