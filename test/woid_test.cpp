@@ -430,6 +430,23 @@ TYPED_TEST(StorageType, storagePropertiesArePropagatedToTheFun) {
     checkTraitSame<std::is_nothrow_move_assignable, Storage, Fun>();
 }
 
+TYPED_TEST(StorageType, canCallOverloaded) {
+    using Storage = TypeParam;
+    auto add2 = [](int x, int y) { return x + y; };
+    auto add3 = [](int x, int y, int z) { return x + y + z; };
+    const Fun<Storage, int(int, int) const, int(int, int, int) const> f{add2, add3};
+    ASSERT_EQ(f(2, 5), add2(2, 5));
+    ASSERT_EQ(f(2, 5, 7), add3(2, 5, 7));
+}
+
+TEST(FunRef, CanCallOverloaded) {
+    auto add2 = [](int x, int y) { return x + y; };
+    auto add3 = [](int x, int y, int z) { return x + y + z; };
+    const FunRef<int(int, int) const, int(int, int, int) const> f{&add2, &add3};
+    ASSERT_EQ(f(2, 5), add2(2, 5));
+    ASSERT_EQ(f(2, 5, 7), add3(2, 5, 7));
+}
+
 TYPED_TEST(MoveStorageTypes, canCallConstMoveOnlyFunction) {
     using Storage = TypeParam;
     auto add = [uniq = std::make_unique<int>(1)](int x, int y) { return x + y; };

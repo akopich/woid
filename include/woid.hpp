@@ -474,7 +474,7 @@ class FunBase {
 
   public:
     template <typename F>
-    FunBase(F&& f)
+    explicit FunBase(F&& f)
           : storage(std::forward<F>(f)), funPtr{+[](Storage& storage, Args&&... args) {
                 using FnoCv = std::remove_cvref_t<F>;
                 static constexpr bool IsConst = std::is_const_v<Storage>;
@@ -519,6 +519,55 @@ class NonConstFun : public FunBase<Storage, R, Args...> {
     }
 };
 
+template <typename Storage, typename>
+struct MonoFun;
+
+template <typename Storage, typename... Args, typename R>
+struct MonoFun<Storage, R(Args...) const noexcept> : detail::ConstFun<true, Storage, R, Args...> {
+    using detail::ConstFun<true, Storage, R, Args...>::ConstFun;
+};
+
+template <typename Storage, typename... Args, typename R>
+struct MonoFun<Storage, R(Args...) const> : detail::ConstFun<false, Storage, R, Args...> {
+    using detail::ConstFun<false, Storage, R, Args...>::ConstFun;
+};
+
+template <typename Storage, typename... Args, typename R>
+struct MonoFun<Storage, R(Args...) noexcept> : detail::NonConstFun<true, Storage, R, Args...> {
+    using detail::NonConstFun<true, Storage, R, Args...>::NonConstFun;
+};
+
+template <typename Storage, typename... Args, typename R>
+struct MonoFun<Storage, R(Args...)> : detail::NonConstFun<false, Storage, R, Args...> {
+    using detail::NonConstFun<false, Storage, R, Args...>::NonConstFun;
+};
+
+template <typename>
+struct MonoFunRef;
+
+template <typename R, typename... Args>
+struct MonoFunRef<R(Args...) const> : MonoFun<detail::Ref, R(Args...) const> {
+    template <typename F>
+    explicit MonoFunRef(const F* f) : MonoFun<detail::Ref, R(Args...) const>{*const_cast<F*>(f)} {}
+};
+
+template <typename R, typename... Args>
+struct MonoFunRef<R(Args...) const noexcept> : MonoFun<detail::Ref, R(Args...) const noexcept> {
+    template <typename F>
+    explicit MonoFunRef(const F* f) : MonoFun<detail::Ref, R(Args...) const>{*const_cast<F*>(f)} {}
+};
+
+template <typename R, typename... Args>
+struct MonoFunRef<R(Args...)> : MonoFun<detail::Ref, R(Args...)> {
+    template <typename F>
+    explicit MonoFunRef(F* f) : MonoFun<detail::Ref, R(Args...)>{*f} {}
+};
+
+template <typename R, typename... Args>
+struct MonoFunRef<R(Args...) noexcept> : MonoFun<detail::Ref, R(Args...) noexcept> {
+    template <typename F>
+    explicit MonoFunRef(F* f) : MonoFun<detail::Ref, R(Args...)>{*f} {}
+};
 } // namespace detail
 
 template <size_t Size,
@@ -543,54 +592,20 @@ struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Sta
                        Alloc>::Woid;
 };
 
-template <typename Storage, typename>
-struct Fun;
+template <typename Storage, typename... Fs>
+struct Fun : detail::MonoFun<Storage, Fs>... {
+    template <typename... T>
+    explicit Fun(T&&... t) : detail::MonoFun<Storage, Fs>{std::forward<T>(t)}... {}
 
-template <typename Storage, typename... Args, typename R>
-struct Fun<Storage, R(Args...) const noexcept> : detail::ConstFun<true, Storage, R, Args...> {
-    using detail::ConstFun<true, Storage, R, Args...>::ConstFun;
+    using detail::MonoFun<Storage, Fs>::operator()...;
 };
 
-template <typename Storage, typename... Args, typename R>
-struct Fun<Storage, R(Args...) const> : detail::ConstFun<false, Storage, R, Args...> {
-    using detail::ConstFun<false, Storage, R, Args...>::ConstFun;
-};
+template <typename... Fs>
+struct FunRef : detail::MonoFunRef<Fs>... {
+    template <typename... T>
+    explicit FunRef(T*... t) : detail::MonoFunRef<Fs>{t}... {}
 
-template <typename Storage, typename... Args, typename R>
-struct Fun<Storage, R(Args...) noexcept> : detail::NonConstFun<true, Storage, R, Args...> {
-    using detail::NonConstFun<true, Storage, R, Args...>::NonConstFun;
-};
-
-template <typename Storage, typename... Args, typename R>
-struct Fun<Storage, R(Args...)> : detail::NonConstFun<false, Storage, R, Args...> {
-    using detail::NonConstFun<false, Storage, R, Args...>::NonConstFun;
-};
-
-template <typename>
-struct FunRef;
-
-template <typename R, typename... Args>
-struct FunRef<R(Args...) const> : Fun<detail::Ref, R(Args...) const> {
-    template <typename F>
-    FunRef(const F* f) : Fun<detail::Ref, R(Args...) const>{*const_cast<F*>(f)} {}
-};
-
-template <typename R, typename... Args>
-struct FunRef<R(Args...) const noexcept> : Fun<detail::Ref, R(Args...) const noexcept> {
-    template <typename F>
-    FunRef(const F* f) : Fun<detail::Ref, R(Args...) const>{*const_cast<F*>(f)} {}
-};
-
-template <typename R, typename... Args>
-struct FunRef<R(Args...)> : Fun<detail::Ref, R(Args...)> {
-    template <typename F>
-    FunRef(F* f) : Fun<detail::Ref, R(Args...)>{*f} {}
-};
-
-template <typename R, typename... Args>
-struct FunRef<R(Args...) noexcept> : Fun<detail::Ref, R(Args...) noexcept> {
-    template <typename F>
-    FunRef(F* f) : Fun<detail::Ref, R(Args...)>{*f} {}
+    using detail::MonoFunRef<Fs>::operator()...;
 };
 
 } // namespace woid
