@@ -380,6 +380,20 @@ class DynamicStorage {
     }
 };
 
+class Ref {
+  private:
+    void* obj;
+
+  public:
+    template <typename T>
+    explicit Ref(T& t) : obj(&t) {}
+
+    template <typename T, typename Self>
+    T get(this Self&& self) {
+        return star<T, Self>(std::forward<Self>(self).obj);
+    }
+};
+
 template <typename T, typename Storage>
 decltype(auto) any_cast(Storage&& s) {
     return std::forward<Storage>(s).template get<T>();
@@ -550,6 +564,33 @@ struct Fun<Storage, R(Args...) noexcept> : detail::NonConstFun<true, Storage, R,
 template <typename Storage, typename... Args, typename R>
 struct Fun<Storage, R(Args...)> : detail::NonConstFun<false, Storage, R, Args...> {
     using detail::NonConstFun<false, Storage, R, Args...>::NonConstFun;
+};
+
+template <typename>
+struct FunRef;
+
+template <typename R, typename... Args>
+struct FunRef<R(Args...) const> : Fun<detail::Ref, R(Args...) const> {
+    template <typename F>
+    FunRef(const F* f) : Fun<detail::Ref, R(Args...) const>{*const_cast<F*>(f)} {}
+};
+
+template <typename R, typename... Args>
+struct FunRef<R(Args...) const noexcept> : Fun<detail::Ref, R(Args...) const noexcept> {
+    template <typename F>
+    FunRef(const F* f) : Fun<detail::Ref, R(Args...) const>{*const_cast<F*>(f)} {}
+};
+
+template <typename R, typename... Args>
+struct FunRef<R(Args...)> : Fun<detail::Ref, R(Args...)> {
+    template <typename F>
+    FunRef(F* f) : Fun<detail::Ref, R(Args...)>{*f} {}
+};
+
+template <typename R, typename... Args>
+struct FunRef<R(Args...) noexcept> : Fun<detail::Ref, R(Args...) noexcept> {
+    template <typename F>
+    FunRef(F* f) : Fun<detail::Ref, R(Args...)>{*f} {}
 };
 
 } // namespace woid

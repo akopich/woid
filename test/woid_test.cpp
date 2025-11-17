@@ -469,6 +469,42 @@ TYPED_TEST(StorageType, canCallNonConstVoidFunction) {
     ASSERT_EQ(i, 5);
 }
 
+struct MoveOnlyFunctor {
+    constexpr MoveOnlyFunctor() = default;
+    MoveOnlyFunctor(const MoveOnlyFunctor&) = delete;
+    MoveOnlyFunctor& operator=(const MoveOnlyFunctor&) = delete;
+    MoveOnlyFunctor(MoveOnlyFunctor&&) = default;
+    MoveOnlyFunctor& operator=(MoveOnlyFunctor&&) = default;
+    ~MoveOnlyFunctor() = default;
+    int operator()(int a, int b) const { return a + b; }
+    int operator()(int a, int b) { return 2 * a + b; }
+};
+
+template <typename T>
+constexpr inline bool IsMovableAndCopyable = std::is_move_constructible_v<T>
+                                             && std::is_move_assignable_v<T>
+                                             && std::is_copy_constructible_v<T>
+                                             && std::is_copy_assignable_v<T>;
+
+TEST(FunRef, canCallConst) {
+    constexpr auto add = MoveOnlyFunctor{};
+    static_assert(!std::is_move_constructible_v<decltype(add)>);
+
+    using F = FunRef<int(int, int) const>;
+    F fRef{&add};
+    static_assert(IsMovableAndCopyable<F>);
+    ASSERT_EQ(fRef(2, 5), add(2, 5));
+}
+
+TEST(FunRef, canCall) {
+    auto doubleAdd = MoveOnlyFunctor{};
+
+    using F = FunRef<int(int, int)>;
+    F fRef{&doubleAdd};
+    static_assert(IsMovableAndCopyable<F>);
+    ASSERT_EQ(fRef(2, 5), doubleAdd(2, 5));
+}
+
 #if defined(__cpp_exceptions)
 
 class Bomb {
