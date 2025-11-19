@@ -256,11 +256,15 @@ def group_benchmark_results(results: List) -> Dict[str, Dict[str, Results]]:
 def mk_container_label(name: str) -> str:
     return name.replace(', alignof(void*)', '')
 
-def plot_benchmark_comparison(benchmark_name: str, container_data: dict[str, Results]):
-    BASE_CONTAINER = "std::any"
+def get_base_container(list1: List[Any], list2: List[Any]) -> Optional[Any]:
+    i = [  (l.split('<')[0] in list1) for l in list2].index(True)
+    return (list(list2))[i]
 
-    if BASE_CONTAINER not in container_data:
-        print(f"Error: Cannot calculate speedup for '{benchmark_name}' as the baseline container <{BASE_CONTAINER}> is missing.")
+def plot_benchmark_comparison(benchmark_name: str, container_data: dict[str, Results]):
+    BASE_CONTAINERS = ["std::any", "std::function", "std::move_only_function"]
+    BASE_CONTAINER = get_base_container(BASE_CONTAINERS, container_data.keys())
+    if BASE_CONTAINER is None:
+        print(f"Error: Cannot calculate speedup for '{benchmark_name}' as a baseline container in missing.")
         return
 
     base_results = container_data[BASE_CONTAINER]

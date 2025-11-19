@@ -468,14 +468,14 @@ struct OneChunkAllocator {
 template <typename Storage, typename R, typename... Args>
 class FunBase {
   protected:
-    using FunPtr = R (*)(Storage&, Args...);
+    using FunPtr = R (*)(Storage&, Args&&...);
     std::remove_cv_t<Storage> storage;
     FunPtr funPtr;
 
   public:
     template <typename F>
     explicit FunBase(F&& f)
-          : storage(std::forward<F>(f)), funPtr{+[](Storage& storage, Args... args) {
+          : storage(std::forward<F>(f)), funPtr{+[](Storage& storage, Args&&... args) {
                 using FnoCv = std::remove_cvref_t<F>;
                 static constexpr bool IsConst = std::is_const_v<Storage>;
                 using FRef = std::conditional_t<IsConst, const FnoCv&, FnoCv&>;
@@ -593,7 +593,7 @@ struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Sta
 };
 
 template <typename Storage, typename... Fs>
-struct Fun : detail::MonoFun<Storage, Fs>... {
+    requires(sizeof...(Fs) > 0) struct Fun : detail::MonoFun<Storage, Fs>... {
     template <typename... T>
     explicit Fun(T&&... t) : detail::MonoFun<Storage, Fs>{std::forward<T>(t)}... {}
 
@@ -601,7 +601,7 @@ struct Fun : detail::MonoFun<Storage, Fs>... {
 };
 
 template <typename... Fs>
-struct FunRef : detail::MonoFunRef<Fs>... {
+    requires(sizeof...(Fs) > 0) struct FunRef : detail::MonoFunRef<Fs>... {
     template <typename... T>
     explicit FunRef(T*... t) : detail::MonoFunRef<Fs>{t}... {}
 

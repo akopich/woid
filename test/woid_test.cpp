@@ -433,14 +433,15 @@ TYPED_TEST(StorageType, storagePropertiesArePropagatedToTheFun) {
 TYPED_TEST(StorageType, canCallOverloaded) {
     using Storage = TypeParam;
     auto add2 = [](int x, int y) { return x + y; };
-    auto add3 = [](int&& x, int& y, const int& z) { return x + y + z; };
-    const Fun<Storage, int(int, int) const, int(int&&, int&, const int&) const> f{add2, add3};
+    auto add4 = [](int v, int&& x, int& y, const int& z) { return v + x + y + z; };
+    const Fun<Storage, int(int, int) const, int(int, int&&, int&, const int&) const> f{add2, add4};
     ASSERT_EQ(f(2, 5), add2(2, 5));
     const int z = 7;
     int y = 5;
     int x = 2;
+    int w = 1;
     int xCopy = x;
-    ASSERT_EQ(f(std::move(x), y, z), add3(std::move(xCopy), y, z));
+    ASSERT_EQ(f(w, std::move(x), y, z), add4(w, std::move(xCopy), y, z));
 }
 
 TEST(FunRef, CanCallOverloaded) {

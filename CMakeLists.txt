@@ -32,7 +32,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "ReleaseWithExceptions")
     add_compile_options("-O3" "-DNDEBUG" "-fno-rtti")
 elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     # Profiling/Release with Debug Info flags
-    add_compile_options("-fno-exceptions" "-fno-omit-frame-pointer" "-g" "-O2" "-fno-rtti")
+    add_compile_options("-fno-exceptions" "-fno-omit-frame-pointer" "-g" "-O3" "-fno-rtti")
 elseif(CMAKE_BUILD_TYPE STREQUAL "AUBSan")
     add_compile_options("-fno-exceptions" "-g" "-O1"
                         "-fsanitize=address,undefined"
@@ -64,6 +64,9 @@ target_link_libraries(MoveOnlyBench benchmark::benchmark)
 
 add_executable(CopyBench bench/copy_bench.cpp)
 target_link_libraries(CopyBench benchmark::benchmark)
+
+add_executable(FunBench bench/fun_bench.cpp)
+target_link_libraries(FunBench benchmark::benchmark)
 
 if (SHUFFLE_SEED)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
