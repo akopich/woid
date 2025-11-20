@@ -17,6 +17,7 @@ namespace woid {
 enum class ExceptionGuarantee { NONE, BASIC, STRONG };
 enum class Copy { ENABLED, DISABLED };
 enum class FunPtr { COMBINED, DEDICATED };
+enum class SafeAnyCast { ENABLED, DISABLED };
 
 struct TransferOwnership {};
 inline TransferOwnership kTransferOwnership{};
@@ -32,6 +33,8 @@ struct DefaultAllocator {
         delete obj;
     }
 };
+
+struct BadAnyCast {};
 
 namespace detail {
 
@@ -60,6 +63,10 @@ struct MemManagerTwoPtrs {
     DeletePtr deletePtr;
     MovePtr movePtr;
 };
+
+inline bool operator==(const MemManagerTwoPtrs& a, const MemManagerTwoPtrs& b) {
+    return a.deletePtr == b.deletePtr;
+}
 
 struct MemManagerThreePtrs : MemManagerTwoPtrs {
   private:
@@ -134,6 +141,10 @@ struct MemManagerOnePtr {
     Ptr ptr;
 };
 
+inline bool operator==(const MemManagerOnePtr& a, const MemManagerOnePtr& b) {
+    return a.ptr == b.ptr;
+}
+
 struct MemManagerOnePtrCpy : MemManagerOnePtr {
     void cpy(void* src, void* dst) const { std::invoke(ptr, CPY, src, dst); }
 };
@@ -196,12 +207,21 @@ T star(Void* p) {
 template <auto mmMaker>
 using GetMemManager = decltype(mmMaker(kTypeTag<int>));
 
+inline void reportBadAnyCast() {
+#if defined(__cpp_exceptions)
+    throw BadAnyCast{};
+#else
+    std::terminate();
+#endif
+}
+
 template <auto mmStaticMaker,
           auto mmDynamicMaker,
           std::size_t Size,
           std::size_t Alignment,
           ExceptionGuarantee Eg,
           Copy copy,
+          SafeAnyCast Sac,
           typename Alloc_>
     requires(Size >= sizeof(void*) && Alignment >= alignof(void*)) class Woid {
   private:
@@ -220,6 +240,7 @@ template <auto mmStaticMaker,
     inline static constexpr auto kExceptionGuarantee = Eg;
     inline static constexpr auto kStaticStorageSize = Size;
     inline static constexpr auto kStaticStorageAlignment = Alignment;
+    inline static constexpr auto kSafeAnyCast = Sac;
     using Alloc = Alloc_;
 
     template <typename T>
@@ -298,10 +319,23 @@ template <auto mmStaticMaker,
         static_assert(!isRef || std::is_constructible_v<T, TnoRef&>);
         static_assert(!isConstRef || std::is_constructible_v<T, const TnoRef&>);
         static_assert(!isRefRef || std::is_constructible_v<T, TnoRef>);
+        using TnoCvRef = std::remove_cvref_t<T>;
 
         auto p = const_cast<void*>(std::forward<Self>(self).ptr());
-        if constexpr (kIsBig<TnoRef>) {
+        if constexpr (kIsBig<TnoCvRef>) {
+            if constexpr (kSafeAnyCast == SafeAnyCast::ENABLED) {
+                if (*std::forward<Self>(self).mm
+                    != mmDynamicMaker(kTypeTag<TnoCvRef>, kTypeTag<Alloc>)) {
+                    reportBadAnyCast();
+                }
+            }
             p = *static_cast<void**>(p);
+        } else {
+            if constexpr (kSafeAnyCast == SafeAnyCast::ENABLED) {
+                if (*std::forward<Self>(self).mm != mmStaticMaker(kTypeTag<TnoCvRef>)) {
+                    reportBadAnyCast();
+                }
+            }
         }
         return star<T, Self>(p);
     }
@@ -344,6 +378,7 @@ class DynamicStorage {
     inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
     inline static constexpr auto kStaticStorageSize = 0;
     inline static constexpr auto kStaticStorageAlignment = 0;
+    inline static constexpr auto kSafeAnyCast = SafeAnyCast::DISABLED;
     using Alloc = Alloc_;
 
     constexpr DynamicStorage() : storage(nullptr) {}
@@ -575,6 +610,7 @@ template <size_t Size,
           ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
           size_t Alignment = alignof(void*),
           FunPtr kFunPtr = FunPtr::COMBINED,
+          SafeAnyCast kSafeAnyCast = SafeAnyCast::DISABLED,
           typename Alloc = DefaultAllocator>
 struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
                                  detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
@@ -582,6 +618,7 @@ struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Sta
                                  Alignment,
                                  Eg,
                                  kCopy,
+                                 kSafeAnyCast,
                                  Alloc> {
     using detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
                        detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
@@ -589,6 +626,7 @@ struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Sta
                        Alignment,
                        Eg,
                        kCopy,
+                       kSafeAnyCast,
                        Alloc>::Woid;
 };
 

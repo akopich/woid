@@ -70,6 +70,8 @@ constexpr auto IsExcptSafe = hana::tuple_c<ExceptionGuarantee,
                                            ExceptionGuarantee::NONE,
                                            ExceptionGuarantee::BASIC,
                                            ExceptionGuarantee::STRONG>;
+constexpr auto IsSafeAnyCast
+    = hana::tuple_c<SafeAnyCast, SafeAnyCast::ENABLED, SafeAnyCast::DISABLED>;
 constexpr auto StaticStorageSizes = hana::tuple_c<size_t, 8, 80>;
 constexpr auto Alignments = hana::tuple_c<size_t, sizeof(void*), alignof(__int128)>;
 
@@ -90,6 +92,7 @@ static constexpr auto make_instantiations() {
                                                                     IsExcptSafe,
                                                                     Alignments,
                                                                     FunPtrTypes,
+                                                                    IsSafeAnyCast,
                                                                     Allocators)),
                            mkAny);
 };
@@ -126,6 +129,11 @@ constexpr auto MoveTestCases
     = hana::concat(mkTestCases(MoveOnlyStorageTypes, ValueTypes), CopyTypesCopyStorageTestCases);
 constexpr auto CopyTypesTestCases
     = hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCases);
+
+constexpr auto SafeAnyCastTestCases = hana::filter(MoveTestCases, [](auto testCase) {
+    using S = decltype(testCase)::type::Storage;
+    return hana::bool_c < S::kSafeAnyCast == SafeAnyCast::ENABLED > ;
+});
 
 constexpr auto MoveTestCasesWithBigObject = hana::filter(MoveTestCases, [](auto testCase) {
     using TC = decltype(testCase)::type;
@@ -673,6 +681,17 @@ TYPED_TEST(StrongEgCopyableStorage, throwOnCopyStrong) {
         ASSERT_EQ(Bomb::cnt, 2);
     }
     ASSERT_EQ(Bomb::cnt, 0);
+}
+
+template <typename T>
+struct SafeAnyCastTest : EgTest<T> {};
+TYPED_TEST_SUITE(SafeAnyCastTest, AsTuple<SafeAnyCastTestCases>);
+
+TYPED_TEST(SafeAnyCastTest, throwOnInvalidAnyCast) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
+    Storage first{std::in_place_type<Value>, kInt};
+    EXPECT_THROW(any_cast<double>(first), BadAnyCast);
 }
 
 #endif

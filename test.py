@@ -124,7 +124,7 @@ def main():
     print(f"Starting {len(BUILD_MATRIX)} builds in parallel using up to {NUM_THREADS} build threads...")
 
     # Using ThreadPoolExecutor to run independent builds concurrently
-    with ThreadPoolExecutor(max_workers=len(BUILD_MATRIX)) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {executor.submit(build_target, compiler, mode): (compiler, mode)
                    for compiler, mode in BUILD_MATRIX}
 

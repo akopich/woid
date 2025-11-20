@@ -90,6 +90,7 @@ BENCHMARK(benchVectorConstructionInt128<Any<8,
                                             ExceptionGuarantee::NONE,
                                             alignof(void*),
                                             FunPtr::COMBINED,
+                                            SafeAnyCast::DISABLED,
                                             Allocator>>)
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt128<Any<8,
@@ -97,6 +98,7 @@ BENCHMARK(benchVectorConstructionInt128<Any<8,
                                             ExceptionGuarantee::NONE,
                                             alignof(void*),
                                             FunPtr::DEDICATED,
+                                            SafeAnyCast::DISABLED,
                                             Allocator>>)
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt128<

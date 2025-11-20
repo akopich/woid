@@ -81,6 +81,9 @@ template <typename Any>
 static auto benchVectorConstructionInt = benchVectorConstructionAndSort<Any, int>;
 
 template <typename Any>
+static auto benchVectorConstructionIntSafety = benchVectorConstructionAndSort<Any, int>;
+
+template <typename Any>
 static auto benchVectorConstructionInt64 = benchVectorConstructionAndSort<Any, std::uint64_t>;
 
 template <typename Any>
@@ -93,6 +96,22 @@ static auto benchVectorConstructionThrowInt
 
 constexpr auto setRange
     = [](auto* bench) -> void { bench->MinWarmUpTime(1)->RangeMultiplier(2)->Range(1, N); };
+
+BENCHMARK(benchVectorConstructionIntSafety<Any<8,
+                                               Copy::DISABLED,
+                                               ExceptionGuarantee::NONE,
+                                               alignof(void*),
+                                               FunPtr::COMBINED,
+                                               SafeAnyCast::ENABLED>>)
+    ->Apply(setRange);
+BENCHMARK(benchVectorConstructionIntSafety<Any<8,
+                                               Copy::DISABLED,
+                                               ExceptionGuarantee::NONE,
+                                               alignof(void*),
+                                               FunPtr::COMBINED,
+                                               SafeAnyCast::DISABLED>>)
+    ->Apply(setRange);
+BENCHMARK(benchVectorConstructionIntSafety<std::any>)->Apply(setRange);
 
 BENCHMARK(benchVectorConstructionInt<
               Any<8, Copy::DISABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
@@ -125,6 +144,7 @@ BENCHMARK(benchVectorConstructionInt128<Any<8,
                                             ExceptionGuarantee::NONE,
                                             alignof(void*),
                                             FunPtr::COMBINED,
+                                            SafeAnyCast::DISABLED,
                                             Allocator>>)
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt128<Any<8,
@@ -132,6 +152,7 @@ BENCHMARK(benchVectorConstructionInt128<Any<8,
                                             ExceptionGuarantee::NONE,
                                             alignof(void*),
                                             FunPtr::DEDICATED,
+                                            SafeAnyCast::DISABLED,
                                             Allocator>>)
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionInt128<
