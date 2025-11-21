@@ -5,7 +5,6 @@
 #include <exception>
 #include <functional>
 #include <memory>
-#include <print>
 #include <type_traits>
 #include <utility>
 
@@ -255,7 +254,9 @@ template <auto mmStaticMaker,
     using Alloc = Alloc_;
 
     template <typename T>
-    explicit Woid(T&& t) : Woid(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
+    explicit Woid(T&& t)
+        requires(!std::is_same_v<std::remove_cvref_t<T>, Woid>)
+          : Woid(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
 
     template <typename T>
     explicit Woid(TransferOwnership, T* tPtr)
@@ -333,7 +334,6 @@ template <auto mmStaticMaker,
         if constexpr (kIsBig<TnoCvRef>) {
             if constexpr (kSafeAnyCast == SafeAnyCast::ENABLED) {
                 if (std::forward<Self>(self).mm != &dynamicMM<TnoCvRef>) {
-                    std::println("GONNA THROW");
                     reportBadAnyCast();
                 }
             }
