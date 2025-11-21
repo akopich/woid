@@ -28,8 +28,8 @@ enum class FunPtr { COMBINED, DEDICATED };
 // This one is tricky. SafeAnyCast enables a fast, low-overhead type check. As we rely on no rtti
 // for performance sake (even if it's enabled), we have to resort to function address matching. In
 // order for this to work correctly across TU boundary be sure to set symbol visibility to default.
-// Be it for the whole project (with `-fvisibility=default`) or just for Woid with `#define
-// WOID_SYMBOL_VISIBILITY`.
+// Be it for the whole project (with `-fvisibility=default`) or just for Woid with
+// `#define WOID_SYMBOL_VISIBILITY`.
 enum class SafeAnyCast { ENABLED, DISABLED };
 
 struct TransferOwnership {};
