@@ -5,6 +5,7 @@
 #include <exception>
 #include <functional>
 #include <memory>
+#include <print>
 #include <type_traits>
 #include <utility>
 
@@ -12,11 +13,23 @@
     _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wswitch\"")
 #define SUPPRESS_SWITCH_WARNING_END _Pragma("GCC diagnostic pop")
 
-namespace woid {
+#ifdef WOID_SYMBOL_VISIBILITY
+#define WOID_SYMBOL_VISIBILITY_FLAG __attribute__((visibility("default")))
+#else
+#define WOID_SYMBOL_VISIBILITY_FLAG
+#endif
+
+namespace woid WOID_SYMBOL_VISIBILITY_FLAG {
 
 enum class ExceptionGuarantee { NONE, BASIC, STRONG };
 enum class Copy { ENABLED, DISABLED };
 enum class FunPtr { COMBINED, DEDICATED };
+
+// This one is tricky. SafeAnyCast enables a fast, low-overhead type check. As we rely on no rtti
+// for performance sake (even if it's enabled), we have to resort to function address matching. In
+// order for this to work correctly across TU boundary be sure to set symbol visibility to default.
+// Be it for the whole project (with `-fvisibility=default`) or just for Woid with `#define
+// WOID_SYMBOL_VISIBILITY`.
 enum class SafeAnyCast { ENABLED, DISABLED };
 
 struct TransferOwnership {};
@@ -63,10 +76,6 @@ struct MemManagerTwoPtrs {
     DeletePtr deletePtr;
     MovePtr movePtr;
 };
-
-inline bool operator==(const MemManagerTwoPtrs& a, const MemManagerTwoPtrs& b) {
-    return a.deletePtr == b.deletePtr;
-}
 
 struct MemManagerThreePtrs : MemManagerTwoPtrs {
   private:
@@ -141,16 +150,12 @@ struct MemManagerOnePtr {
     Ptr ptr;
 };
 
-inline bool operator==(const MemManagerOnePtr& a, const MemManagerOnePtr& b) {
-    return a.ptr == b.ptr;
-}
-
 struct MemManagerOnePtrCpy : MemManagerOnePtr {
     void cpy(void* src, void* dst) const { std::invoke(ptr, CPY, src, dst); }
 };
 
 template <typename Del, typename Mov>
-consteval auto mkMemManagerOnePtrFromLambdas(Del, Mov) {
+constexpr auto mkMemManagerOnePtrFromLambdas(Del, Mov) {
     return MemManagerOnePtr{+[](Op op, void* ptr, void* dst) static -> void {
         SUPPRESS_SWITCH_WARNING_START
         switch (op) {
@@ -236,6 +241,12 @@ template <auto mmStaticMaker,
           || alignof(T) > Alignment
           || (Eg == ExceptionGuarantee::STRONG && !std::is_nothrow_move_constructible_v<T>);
 
+    template <typename T>
+    static constexpr inline auto dynamicMM = mmDynamicMaker(kTypeTag<T>, kTypeTag<Alloc_>);
+
+    template <typename T>
+    static constexpr inline auto staticMM = mmStaticMaker(kTypeTag<T>);
+
   public:
     inline static constexpr auto kExceptionGuarantee = Eg;
     inline static constexpr auto kStaticStorageSize = Size;
@@ -249,21 +260,18 @@ template <auto mmStaticMaker,
     template <typename T>
     explicit Woid(TransferOwnership, T* tPtr)
         requires(kIsBig<T> && !std::is_const_v<T>) {
-        static constinit auto mm = mmDynamicMaker(kTypeTag<T>, kTypeTag<Alloc>);
-        this->mm = &mm;
+        this->mm = &dynamicMM<T>;
         *static_cast<void**>(ptr()) = tPtr;
     }
 
     template <typename T, typename... Args>
     explicit Woid(std::in_place_type_t<T>, Args... args) {
         if constexpr (kIsBig<T>) {
-            static constinit auto mm = mmDynamicMaker(kTypeTag<T>, kTypeTag<Alloc>);
-            this->mm = &mm;
+            this->mm = &dynamicMM<T>;
             auto* obj = Alloc::template make<T>(std::forward<Args>(args)...);
             *static_cast<void**>(ptr()) = obj;
         } else {
-            static constinit auto mm = mmStaticMaker(kTypeTag<T>);
-            this->mm = &mm;
+            this->mm = &staticMM<T>;
             new (ptr()) T(std::forward<Args>(args)...);
         }
     }
@@ -324,15 +332,15 @@ template <auto mmStaticMaker,
         auto p = const_cast<void*>(std::forward<Self>(self).ptr());
         if constexpr (kIsBig<TnoCvRef>) {
             if constexpr (kSafeAnyCast == SafeAnyCast::ENABLED) {
-                if (*std::forward<Self>(self).mm
-                    != mmDynamicMaker(kTypeTag<TnoCvRef>, kTypeTag<Alloc>)) {
+                if (std::forward<Self>(self).mm != &dynamicMM<TnoCvRef>) {
+                    std::println("GONNA THROW");
                     reportBadAnyCast();
                 }
             }
             p = *static_cast<void**>(p);
         } else {
             if constexpr (kSafeAnyCast == SafeAnyCast::ENABLED) {
-                if (*std::forward<Self>(self).mm != mmStaticMaker(kTypeTag<TnoCvRef>)) {
+                if (std::forward<Self>(self).mm != &staticMM<TnoCvRef>) {
                     reportBadAnyCast();
                 }
             }
@@ -342,7 +350,7 @@ template <auto mmStaticMaker,
 
   private:
     alignas(Alignment) std::array<char, Size> storage;
-    MemManager* mm;
+    const MemManager* mm;
 
     template <typename Self>
     decltype(auto) ptr(this Self&& self) {
@@ -646,4 +654,4 @@ template <typename... Fs>
     using detail::MonoFunRef<Fs>::operator()...;
 };
 
-} // namespace woid
+} // namespace woid WOID_SYMBOL_VISIBILITY_FLAG

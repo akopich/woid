@@ -68,6 +68,19 @@ target_link_libraries(CopyBench benchmark::benchmark)
 add_executable(FunBench bench/fun_bench.cpp)
 target_link_libraries(FunBench benchmark::benchmark)
 
+add_library(CrossTuLib SHARED test/cross_tu_lib.cpp)
+
+target_compile_options(CrossTuLib PRIVATE -fvisibility=hidden)
+
+add_executable(CrossTuTest test/cross_tu_test.cpp)
+target_link_libraries(CrossTuTest
+    GTest::gtest_main
+    CrossTuLib
+)
+target_link_options(CrossTuTest PRIVATE
+    -Wl,-rpath,'$ORIGIN'
+)
+
 if (SHUFFLE_SEED)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--shuffle-sections=.*=${SHUFFLE_SEED}")

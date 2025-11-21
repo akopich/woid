@@ -86,24 +86,33 @@ def build_target(compiler, mode):
         build_cmd = ["cmake", "--build", build_dir, "--", f"-j{NUM_THREADS}"]
         run_command(build_cmd)
 
-        if not os.path.exists(os.path.join(build_dir, "MoveOnlyBench")):
-             raise Exception(f"MoveOnlyBench was not found in '{build_dir}'")
-        else:
-             print("MoveOnlyBench is built successfully.")
+        EXPECTED_BINARIES = ["MoveOnlyBench", "CopyBench", "WoidTest", "CrossTuTest", "FunBench"]
 
-        expected_binary = os.path.join(build_dir, "WoidTest")
+        for binary in EXPECTED_BINARIES:
+            if not os.path.exists(os.path.join(build_dir, binary)):
+                 raise Exception(f"{binary} was not found in '{build_dir}'")
+            else:
+                 print(f"{binary} is built successfully.")
 
-        if os.path.exists(expected_binary):
-            print(f"Successfully built executable: {expected_binary}. Now running tests...")
+        BINARIES_TO_RUN = ["WoidTest", "CrossTuTest"]
 
-            # Execute the built test program
-            run_command([expected_binary])
+        successful_runs = 0
 
-            success = True
-            print(f"Test run completed for: {build_name}")
-        else:
-            raise Exception(f"Build succeeded, but expected executable '{os.path.basename(expected_binary)}' was not found in '{build_dir}'")
+        for binary in BINARIES_TO_RUN:
+            expected_binary = os.path.join(build_dir, binary)
+            print(expected_binary)
 
+            if os.path.exists(expected_binary):
+                print(f"Successfully built executable: {expected_binary}. Now running tests...")
+
+                # Execute the built test program
+                run_command([expected_binary])
+
+                successful_runs += 1
+                print(f"Test run completed for: {build_name}")
+            else:
+                raise Exception(f"Build succeeded, but expected executable '{os.path.basename(expected_binary)}' was not found in '{build_dir}'")
+    success = successful_runs == len(BINARIES_TO_RUN)
     except Exception as e:
         print(f"*** Build or Test FAILED for {build_name}: {e} ***")
     finally:
