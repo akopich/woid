@@ -39,6 +39,7 @@ TYPED_TEST(SafeAnyCastTest, SafeAnyCastWorksWhenTypeMatches) {
     ASSERT_EQ(any_cast<Value>(any), kInt);
     ASSERT_EQ(any_cast<Value&>(any), kInt);
     ASSERT_EQ(any_cast<const Value&>(any), kInt);
+    ASSERT_EQ(any_cast<Value&&>(std::move(any)), kInt);
 }
 
 #if defined(__cpp_exceptions)
