@@ -354,7 +354,8 @@ template <auto mmStaticMaker,
 
     template <typename Self>
     decltype(auto) ptr(this Self&& self) {
-        return static_cast<RetainConstPtr<Self, void>>(&std::forward<Self>(self).storage.front());
+        return static_cast<RetainConstPtr<Self, void>>(
+            std::launder(&std::forward<Self>(self).storage.front()));
     }
 };
 
