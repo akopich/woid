@@ -18,6 +18,14 @@
 #define WOID_SYMBOL_VISIBILITY_FLAG
 #endif
 
+#ifdef __clang__
+#define WOID_NO_ICF // clang seems to have no equivalent
+#elif __GNUC__
+#define WOID_NO_ICF [[gnu::no_icf]]
+#else
+#define WOID_NO_ICF
+#endif
+
 namespace woid WOID_SYMBOL_VISIBILITY_FLAG {
 
 enum class ExceptionGuarantee { NONE, BASIC, STRONG };
@@ -241,10 +249,11 @@ template <auto mmStaticMaker,
           || (Eg == ExceptionGuarantee::STRONG && !std::is_nothrow_move_constructible_v<T>);
 
     template <typename T>
-    static constexpr inline auto dynamicMM = mmDynamicMaker(kTypeTag<T>, kTypeTag<Alloc_>);
+    static constexpr inline auto dynamicMM WOID_NO_ICF
+        = mmDynamicMaker(kTypeTag<T>, kTypeTag<Alloc_>);
 
     template <typename T>
-    static constexpr inline auto staticMM = mmStaticMaker(kTypeTag<T>);
+    static constexpr inline auto staticMM WOID_NO_ICF = mmStaticMaker(kTypeTag<T>);
 
   public:
     inline static constexpr auto kExceptionGuarantee = Eg;
