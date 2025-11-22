@@ -44,11 +44,19 @@ static auto benchVectorStdLess = benchVectorSort<std::less<int>, F>;
 template <typename F>
 static auto benchVectorBigLess = benchVectorSort<BigLess<32>, F>;
 
+template <typename F>
+struct Id {
+    F f;
+    bool operator()(int a, int b) { return f(a, b); }
+};
+
+BENCHMARK(benchVectorStdLess<Id<std::less<int>>>)->Apply(setRange);
 BENCHMARK(benchVectorStdLess<Fun<Any<8>, bool(int, int)>>)->Apply(setRange);
 BENCHMARK(benchVectorStdLess<Fun<Any<8>, bool(int, int) const>>)->Apply(setRange);
 BENCHMARK(benchVectorStdLess<Fun<Any<8>, bool(int, int) const noexcept>>)->Apply(setRange);
 BENCHMARK(benchVectorStdLess<std::function<bool(int, int)>>)->Apply(setRange);
 
+BENCHMARK(benchVectorBigLess<Id<BigLess<32>>>)->Apply(setRange);
 BENCHMARK(benchVectorBigLess<Fun<Any<8>, bool(int, int) noexcept>>)->Apply(setRange);
 BENCHMARK(benchVectorBigLess<
               Fun<Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, 32>, bool(int, int) noexcept>>)
