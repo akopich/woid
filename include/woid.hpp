@@ -435,7 +435,8 @@ class DynamicStorage {
 
 class Ref {
   private:
-    void* obj;
+    // it's used
+    [[maybe_unused]] void* obj;
 
   public:
     template <typename T>
