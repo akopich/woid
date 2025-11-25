@@ -695,7 +695,10 @@ template <typename... Fs>
 
 template <detail::FixedString Name_, auto MethodLam>
 class Method {
-    using ProbePtr = void (*)(void);
+    template <typename S>
+    using Ptr = void (*)(S&);
+
+    using ProbePtr = Ptr<int>;
     alignas(ProbePtr) std::array<char, sizeof(ProbePtr)> funPtr;
 
   public:
@@ -703,8 +706,7 @@ class Method {
 
     template <typename S, typename T>
     Method(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
-        using P = void (*)(S&);
-        P ptr = +[](S& s) {
+        Ptr<S> ptr = +[](S& s) {
             auto m = MethodLam.template operator()<T>();
             std::invoke(m, &any_cast<T&>(s));
         };
@@ -713,9 +715,7 @@ class Method {
 
     template <typename S>
     void invoke(S& s) {
-        using P = void (*)(S&);
-        P p = *reinterpret_cast<P*>(funPtr.data());
-        std::invoke(p, s);
+        std::invoke(*reinterpret_cast<Ptr<S>*>(funPtr.data()), s);
     }
 };
 
