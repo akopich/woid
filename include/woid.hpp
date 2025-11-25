@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <functional>
 #include <memory>
@@ -622,6 +623,33 @@ struct MonoFunRef<R(Args...) noexcept> : MonoFun<detail::Ref, R(Args...) noexcep
     template <typename F>
     explicit MonoFunRef(F* f) : MonoFun<detail::Ref, R(Args...)>{*f} {}
 };
+
+class FixedString {
+    static constexpr inline size_t maxLength = 128;
+
+  public:
+    std::array<char, maxLength> data{};
+
+    constexpr FixedString(const char* s) {
+        std::copy_n(s, std::char_traits<char>::length(s), &data.front());
+    }
+
+    constexpr operator const char*() const { return &data.front(); }
+};
+
+constexpr bool operator==(const FixedString& a, const FixedString& b) { return a.data == b.data; }
+
+template <FixedString Name, typename Head, typename... Tail>
+struct Find {
+    using type = std::
+        conditional_t<Head::Name == Name, std::type_identity<Head>, Find<Name, Tail...>>::type;
+};
+
+template <FixedString Name, typename Head>
+struct Find<Name, Head> : std::type_identity<Head> {
+    static_assert(Name == Head::Name);
+};
+
 } // namespace detail
 
 template <size_t Size,
@@ -663,6 +691,45 @@ template <typename... Fs>
     explicit FunRef(T*... t) : detail::MonoFunRef<Fs>{t}... {}
 
     using detail::MonoFunRef<Fs>::operator()...;
+};
+
+template <detail::FixedString Name_, auto MethodLam>
+class Method {
+    using ProbePtr = void (*)(void);
+    alignas(ProbePtr) std::array<char, sizeof(ProbePtr)> funPtr;
+
+  public:
+    constexpr static inline auto Name = Name_;
+
+    template <typename S, typename T>
+    Method(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
+        using P = void (*)(S&);
+        P ptr = +[](S& s) {
+            auto m = MethodLam.template operator()<T>();
+            std::invoke(m, &any_cast<T&>(s));
+        };
+        std::memcpy(funPtr.data(), &ptr, funPtr.size());
+    }
+
+    template <typename S>
+    void invoke(S& s) {
+        using P = void (*)(S&);
+        P p = *reinterpret_cast<P*>(funPtr.data());
+        std::invoke(p, s);
+    }
+};
+
+template <typename Storage, typename... Ms>
+struct Interface : Ms... {
+    template <detail::FixedString Name>
+    constexpr inline void call() {
+        static_cast<detail::Find<Name, Ms...>::type*>(this)->invoke(storage);
+    }
+    Storage storage;
+
+    template <typename T>
+    Interface(T&& t)
+          : Ms{detail::TypeTag<Storage>{}, detail::TypeTag<T>{}}..., storage{std::forward<T>(t)} {}
 };
 
 } // namespace woid WOID_SYMBOL_VISIBILITY_FLAG

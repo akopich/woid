@@ -59,6 +59,9 @@ include_directories(include)
 add_executable(WoidTest test/woid_test.cpp)
 target_link_libraries(WoidTest GTest::gtest_main)
 
+add_executable(InterfaceTest test/interface_test.cpp)
+target_link_libraries(InterfaceTest GTest::gtest_main)
+
 add_executable(MoveOnlyBench bench/move_only_bench.cpp)
 target_link_libraries(MoveOnlyBench benchmark::benchmark)
 
