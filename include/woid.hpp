@@ -534,11 +534,7 @@ class FunBase {
                 using FnoCv = std::remove_cvref_t<F>;
                 static constexpr bool IsConst = std::is_const_v<Storage>;
                 using FRef = std::conditional_t<IsConst, const FnoCv&, FnoCv&>;
-                if constexpr (std::is_void_v<R>) {
-                    std::invoke(any_cast<FRef>(storage), std::forward<Args>(args)...);
-                } else {
-                    return std::invoke(any_cast<FRef>(storage), std::forward<Args>(args)...);
-                }
+                return std::invoke(any_cast<FRef>(storage), std::forward<Args>(args)...);
             }} {}
 };
 
@@ -547,13 +543,7 @@ class ConstFun : public FunBase<const Storage, R, Args...> {
   public:
     using FunBase<const Storage, R, Args...>::FunBase;
 
-    void operator()(Args... args) const noexcept(IsNoexcept)
-        requires(std::is_void_v<R>) {
-        std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
-    }
-
-    decltype(auto) operator()(Args... args) const noexcept(IsNoexcept)
-        requires(!std::is_void_v<R>) {
+    decltype(auto) operator()(Args... args) const noexcept(IsNoexcept) {
         return std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
     }
 };
@@ -563,13 +553,7 @@ class NonConstFun : public FunBase<Storage, R, Args...> {
   public:
     using FunBase<Storage, R, Args...>::FunBase;
 
-    void operator()(Args... args) noexcept(IsNoexcept)
-        requires(std::is_void_v<R>) {
-        std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
-    }
-
-    decltype(auto) operator()(Args... args) noexcept(IsNoexcept)
-        requires(!std::is_void_v<R>) {
+    decltype(auto) operator()(Args... args) noexcept(IsNoexcept) {
         return std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
     }
 };
@@ -717,13 +701,9 @@ class Method<Name_, R(Args...), MethodLam> {
 
     template <typename S, typename T>
     Method(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
-        auto ptr = +[](S& s, Args... args) {
+        auto ptr = +[](S& s, Args... args) -> R {
             static constexpr auto m = MethodLam.template operator()<T>();
-            if constexpr (std::is_void_v<R>) {
-                std::invoke(m, &any_cast<T&>(s), std::forward<Args...>(args)...);
-            } else {
-                return std::invoke(m, &any_cast<T&>(s), std::forward<Args...>(args)...);
-            }
+            return std::invoke(m, &any_cast<T&>(s), std::forward<Args...>(args)...);
         };
         std::memcpy(funPtr.data(), &ptr, funPtr.size());
     }

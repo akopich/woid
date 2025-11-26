@@ -112,7 +112,7 @@ def build_target(compiler, mode):
                 print(f"Test run completed for: {build_name}")
             else:
                 raise Exception(f"Build succeeded, but expected executable '{os.path.basename(expected_binary)}' was not found in '{build_dir}'")
-    success = successful_runs == len(BINARIES_TO_RUN)
+        success = successful_runs == len(BINARIES_TO_RUN)
     except Exception as e:
         print(f"*** Build or Test FAILED for {build_name}: {e} ***")
     finally:
