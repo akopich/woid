@@ -86,7 +86,7 @@ def build_target(compiler, mode):
         build_cmd = ["cmake", "--build", build_dir, "--", f"-j{NUM_THREADS}"]
         run_command(build_cmd)
 
-        EXPECTED_BINARIES = ["MoveOnlyBench", "CopyBench", "WoidTest", "CrossTuTest", "FunBench"]
+        EXPECTED_BINARIES = ["MoveOnlyBench", "CopyBench", "WoidTest", "CrossTuTest", "FunBench", "InterfaceTest"]
 
         for binary in EXPECTED_BINARIES:
             if not os.path.exists(os.path.join(build_dir, binary)):
@@ -94,7 +94,7 @@ def build_target(compiler, mode):
             else:
                  print(f"{binary} is built successfully.")
 
-        BINARIES_TO_RUN = ["WoidTest", "CrossTuTest"]
+        BINARIES_TO_RUN = ["WoidTest", "CrossTuTest", "InterfaceTest"]
 
         successful_runs = 0
 
