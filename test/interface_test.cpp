@@ -10,12 +10,16 @@ using namespace woid;
 
 struct C {
     static inline size_t cnt = 0;
+    void set(size_t i) { cnt = i; }
+    size_t get() { return cnt; }
     void inc() { cnt++; }
     void twice() { cnt *= 2; }
 };
 
 struct CC {
     static inline size_t cnt = 0;
+    void set(size_t i) { cnt = i; }
+    size_t get() { return cnt; }
     void inc() { cnt += 2; }
     void twice() { cnt *= 4; }
 };
@@ -23,9 +27,13 @@ struct CC {
 using Storage = woid::Any<8>;
 
 struct IncAndTwice : Interface<Storage,
-                               Method<"inc", []<typename T> { return &T::inc; }>,
-                               Method<"twice", []<typename T> { return &T::twice; }>> {
+                               Method<"set", void(int), []<typename T> { return &T::set; }>,
+                               Method<"get", size_t(), []<typename T> { return &T::get; }>,
+                               Method<"inc", void(void), []<typename T> { return &T::inc; }>,
+                               Method<"twice", void(void), []<typename T> { return &T::twice; }>> {
 
+    void set(size_t i) { call<"set", size_t>(i); }
+    size_t get() { return call<"get">(); }
     void inc() { call<"inc">(); }
     void twice() { call<"twice">(); }
 };
@@ -34,11 +42,12 @@ TEST(InterfaceTest, canCallNoArgNoConstMethods) {
     C::cnt = 0;
 
     IncAndTwice it{C{}};
+    it.set(3);
     it.inc();
     it.twice();
     it.twice();
 
-    ASSERT_EQ(C::cnt, 4);
+    ASSERT_EQ(it.get(), 16);
 }
 
 TEST(InterfaceTest, anPutThemAllInVector) {

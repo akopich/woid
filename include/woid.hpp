@@ -693,10 +693,21 @@ template <typename... Fs>
     using detail::MonoFunRef<Fs>::operator()...;
 };
 
-template <detail::FixedString Name_, auto MethodLam>
-class Method {
+template <typename T>
+struct Free;
+
+template <typename T, typename R, typename... Args>
+struct Free<R (T::*)(Args...)> {
+    using Type = R(Args...);
+};
+
+template <detail::FixedString Name_, typename M, auto MethodLam>
+class Method;
+
+template <typename R, typename... Args, detail::FixedString Name_, auto MethodLam>
+class Method<Name_, R(Args...), MethodLam> {
     template <typename S>
-    using Ptr = void (*)(S&);
+    using Ptr = R (*)(S&, Args...);
 
     using ProbePtr = Ptr<int>;
     alignas(ProbePtr) std::array<char, sizeof(ProbePtr)> funPtr;
@@ -706,25 +717,32 @@ class Method {
 
     template <typename S, typename T>
     Method(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
-        Ptr<S> ptr = +[](S& s) {
-            auto m = MethodLam.template operator()<T>();
-            std::invoke(m, &any_cast<T&>(s));
+        auto ptr = +[](S& s, Args... args) {
+            static constexpr auto m = MethodLam.template operator()<T>();
+            if constexpr (std::is_void_v<R>) {
+                std::invoke(m, &any_cast<T&>(s), std::forward<Args...>(args)...);
+            } else {
+                return std::invoke(m, &any_cast<T&>(s), std::forward<Args...>(args)...);
+            }
         };
         std::memcpy(funPtr.data(), &ptr, funPtr.size());
     }
 
     template <typename S>
-    void invoke(S& s) {
-        std::invoke(*reinterpret_cast<Ptr<S>*>(funPtr.data()), s);
+    decltype(auto) invoke(S& s, Args&&... args) {
+        return std::invoke(
+            *reinterpret_cast<Ptr<S>*>(funPtr.data()), s, std::forward<Args&&>(args)...);
     }
 };
 
 template <typename Storage, typename... Ms>
 struct Interface : Ms... {
-    template <detail::FixedString Name>
-    constexpr inline void call() {
-        static_cast<detail::Find<Name, Ms...>::type*>(this)->invoke(storage);
+    template <detail::FixedString Name, typename... Args>
+    constexpr inline decltype(auto) call(Args... args) {
+        return static_cast<detail::Find<Name, Ms...>::type*>(this)->invoke(
+            storage, std::forward<Args&&>(args)...);
     }
+
     Storage storage;
 
     template <typename T>
