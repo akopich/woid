@@ -727,7 +727,8 @@ struct Interface : Ms... {
 
     template <typename T>
     Interface(T&& t)
-          : Ms{detail::TypeTag<Storage>{}, detail::TypeTag<T>{}}..., storage{std::forward<T>(t)} {}
+          : Ms{detail::TypeTag<Storage>{}, detail::TypeTag<std::remove_cvref_t<T>>{}}...,
+            storage{std::forward<T>(t)} {}
 };
 
 } // namespace woid WOID_SYMBOL_VISIBILITY_FLAG

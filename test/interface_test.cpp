@@ -24,24 +24,35 @@ struct CC {
     void twice() { cnt *= 4; }
 };
 
-using Storage = woid::Any<8>;
+using Storages = testing::Types<woid::Any<8, Copy::ENABLED>, woid::Any<8, Copy::DISABLED>>;
 
-struct IncAndTwice : Interface<Storage,
+template <typename S>
+struct IncAndTwice : Interface<S,
                                Method<"set", void(int), []<typename T> { return &T::set; }>,
                                Method<"get", size_t(), []<typename T> { return &T::get; }>,
                                Method<"inc", void(void), []<typename T> { return &T::inc; }>,
                                Method<"twice", void(void), []<typename T> { return &T::twice; }>> {
 
-    void set(size_t i) { call<"set", size_t>(i); }
-    size_t get() { return call<"get">(); }
-    void inc() { call<"inc">(); }
-    void twice() { call<"twice">(); }
+    void set(size_t i) { this->template call<"set", size_t>(i); }
+    size_t get() { return this->template call<"get">(); }
+    void inc() { this->template call<"inc">(); }
+    void twice() { this->template call<"twice">(); }
 };
 
-TEST(InterfaceTest, canCallNoArgNoConstMethods) {
-    C::cnt = 0;
+template <typename T>
+struct InterfaceTest : testing::Test {
+    ~InterfaceTest() {
+        C::cnt = 0;
+        CC::cnt = 0;
+    }
+};
 
-    IncAndTwice it{C{}};
+TYPED_TEST_SUITE(InterfaceTest, Storages);
+
+TYPED_TEST(InterfaceTest, canCallNoArgNoConstMethods) {
+    using Storage = TypeParam;
+
+    IncAndTwice<Storage> it{C{}};
     it.set(3);
     it.inc();
     it.twice();
@@ -50,13 +61,33 @@ TEST(InterfaceTest, canCallNoArgNoConstMethods) {
     ASSERT_EQ(it.get(), 16);
 }
 
-TEST(InterfaceTest, anPutThemAllInVector) {
-    C::cnt = 0;
+TYPED_TEST(InterfaceTest, andPutThemAllInVector) {
+    using Storage = TypeParam;
 
-    std::vector<IncAndTwice> v;
+    std::vector<IncAndTwice<Storage>> v;
 
     v.emplace_back(C{});
     v.emplace_back(CC{});
+
+    for (auto& x : v) {
+        x.inc();
+        x.inc();
+        x.inc();
+        x.twice();
+    }
+
+    ASSERT_EQ(C::cnt, 6);
+    ASSERT_EQ(CC::cnt, 24);
+}
+
+TEST(InterfaceRefTest, worksWithRefToo) {
+    C c{};
+    CC cc{};
+
+    std::vector<IncAndTwice<detail::Ref>> v;
+
+    v.emplace_back(c);
+    v.emplace_back(cc);
 
     for (auto x : v) {
         x.inc();
@@ -67,4 +98,20 @@ TEST(InterfaceTest, anPutThemAllInVector) {
 
     ASSERT_EQ(C::cnt, 6);
     ASSERT_EQ(CC::cnt, 24);
+}
+
+template <template <typename> typename TraitV, typename X, typename Y>
+static void checkTraitSame() {
+    static_assert(TraitV<X>::value == TraitV<Y>::value);
+}
+
+TYPED_TEST(InterfaceTest, storagePropertiesArePropagatedToTheInterface) {
+    using Storage = TypeParam;
+    using I = IncAndTwice<Storage>;
+    checkTraitSame<std::is_copy_constructible, Storage, I>();
+    checkTraitSame<std::is_copy_assignable, Storage, I>();
+    checkTraitSame<std::is_move_constructible, Storage, I>();
+    checkTraitSame<std::is_move_assignable, Storage, I>();
+    checkTraitSame<std::is_nothrow_move_constructible, Storage, I>();
+    checkTraitSame<std::is_nothrow_move_assignable, Storage, I>();
 }
