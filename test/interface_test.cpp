@@ -11,15 +11,15 @@ using namespace woid;
 struct C {
     static inline size_t cnt = 0;
     void set(size_t i) { cnt = i; }
-    size_t get() { return cnt; }
+    size_t get() const { return cnt; }
     void inc() { cnt++; }
-    void twice() { cnt *= 2; }
+    void twice() const { cnt *= 2; }
 };
 
 struct CC {
     static inline size_t cnt = 0;
     void set(size_t i) { cnt = i; }
-    size_t get() { return cnt; }
+    size_t get() const { return cnt; }
     void inc() { cnt += 2; }
     void twice() { cnt *= 4; }
 };
@@ -27,14 +27,15 @@ struct CC {
 using Storages = testing::Types<woid::Any<8, Copy::ENABLED>, woid::Any<8, Copy::DISABLED>>;
 
 template <typename S>
-struct IncAndTwice : Interface<S,
-                               Method<"set", void(int), []<typename T> { return &T::set; }>,
-                               Method<"get", size_t(), []<typename T> { return &T::get; }>,
-                               Method<"inc", void(void), []<typename T> { return &T::inc; }>,
-                               Method<"twice", void(void), []<typename T> { return &T::twice; }>> {
+struct IncAndTwice
+      : Interface<S,
+                  Method<"set", void(int), []<typename T> { return &T::set; }>,
+                  Method<"get", size_t(void) const, []<typename T> { return &T::get; }>,
+                  Method<"inc", void(void), []<typename T> { return &T::inc; }>,
+                  Method<"twice", void(void), []<typename T> { return &T::twice; }>> {
 
     void set(size_t i) { this->template call<"set", size_t>(i); }
-    size_t get() { return this->template call<"get">(); }
+    size_t get() const { return this->template call<"get">(); }
     void inc() { this->template call<"inc">(); }
     void twice() { this->template call<"twice">(); }
 };
@@ -49,7 +50,7 @@ struct InterfaceTest : testing::Test {
 
 TYPED_TEST_SUITE(InterfaceTest, Storages);
 
-TYPED_TEST(InterfaceTest, canCallNoArgNoConstMethods) {
+TYPED_TEST(InterfaceTest, canCallMethods) {
     using Storage = TypeParam;
 
     IncAndTwice<Storage> it{C{}};
@@ -58,7 +59,7 @@ TYPED_TEST(InterfaceTest, canCallNoArgNoConstMethods) {
     it.twice();
     it.twice();
 
-    ASSERT_EQ(it.get(), 16);
+    ASSERT_EQ(static_cast<const IncAndTwice<Storage>&>(it).get(), 16);
 }
 
 TYPED_TEST(InterfaceTest, andPutThemAllInVector) {

@@ -738,11 +738,44 @@ class Method<Name_, R(Args...), MethodLam> {
     }
 };
 
+template <typename R, typename... Args, detail::FixedString Name_, auto MethodLam>
+class Method<Name_, R(Args...) const, MethodLam> {
+    template <typename S>
+    using Ptr = R (*)(const S&, Args...);
+
+    using ProbePtr = Ptr<int>;
+    alignas(ProbePtr) std::array<char, sizeof(ProbePtr)> funPtr;
+
+  public:
+    constexpr static inline auto Name = Name_;
+
+    template <typename S, typename T>
+    Method(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
+        auto ptr = +[](const S& s, Args... args) -> R {
+            static constexpr auto m = MethodLam.template operator()<T>();
+            return std::invoke(m, &any_cast<const T&>(s), std::forward<Args...>(args)...);
+        };
+        std::memcpy(funPtr.data(), &ptr, funPtr.size());
+    }
+
+    template <typename S>
+    decltype(auto) invoke(S& s, Args&&... args) const {
+        return std::invoke(
+            *reinterpret_cast<const Ptr<S>*>(funPtr.data()), s, std::forward<Args&&>(args)...);
+    }
+};
+
 template <typename Storage, typename... Ms>
 struct Interface : Ms... {
     template <detail::FixedString Name, typename... Args>
     constexpr inline decltype(auto) call(Args... args) {
         return static_cast<detail::Find<Name, Ms...>::type*>(this)->invoke(
+            storage, std::forward<Args&&>(args)...);
+    }
+
+    template <detail::FixedString Name, typename... Args>
+    constexpr inline decltype(auto) call(Args... args) const {
+        return static_cast<const detail::Find<Name, Ms...>::type*>(this)->invoke(
             storage, std::forward<Args&&>(args)...);
     }
 
