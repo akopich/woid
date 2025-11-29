@@ -116,3 +116,25 @@ TYPED_TEST(InterfaceTest, storagePropertiesArePropagatedToTheInterface) {
     checkTraitSame<std::is_nothrow_move_constructible, Storage, I>();
     checkTraitSame<std::is_nothrow_move_assignable, Storage, I>();
 }
+
+struct G {
+    int get() { return 5; }
+    int get() const { return 45; }
+};
+
+struct GI
+      : Interface<
+            Any<8>,
+            Method<"get", int(void), []<typename T> { return static_cast<int (T::*)()>(&T::get); }>,
+
+            Method<"get", int(void) const, []<typename T> {
+                return static_cast<int (T::*)() const>(&T::get);
+            }>> {};
+
+TEST(ConstVsNoConst, constOverload) {
+    GI g{G{}};
+    ASSERT_EQ(g.call<"get">(), 5);
+
+    const GI cg = g;
+    ASSERT_EQ(cg.call<"get">(), 45);
+}

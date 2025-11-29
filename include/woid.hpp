@@ -611,15 +611,19 @@ class FixedString {
 
 constexpr bool operator==(const FixedString& a, const FixedString& b) { return a.data == b.data; }
 
-template <FixedString Name, typename Head, typename... Tail>
+template <FixedString Name, auto IsConst, typename T>
+constexpr inline bool kIsFound = Name == T::Name && IsConst == T::IsConst;
+
+template <FixedString Name, auto IsConst, typename Head, typename... Tail>
 struct Find {
-    using type = std::
-        conditional_t<Head::Name == Name, std::type_identity<Head>, Find<Name, Tail...>>::type;
+    using type = std::conditional_t<kIsFound<Name, IsConst, Head>,
+                                    std::type_identity<Head>,
+                                    Find<Name, IsConst, Tail...>>::type;
 };
 
-template <FixedString Name, typename Head>
-struct Find<Name, Head> : std::type_identity<Head> {
-    static_assert(Name == Head::Name);
+template <FixedString Name, bool IsConst, typename Head>
+struct Find<Name, IsConst, Head> : std::type_identity<Head> {
+    static_assert(kIsFound<Name, IsConst, Head>);
 };
 
 template <bool Const>
@@ -648,24 +652,25 @@ struct RefImpl {
 template <typename T, bool IsConst>
 using ConditionalRef = std::conditional_t<IsConst, const T&, T&>;
 
-template <FixedString Name_, auto MethodLam, bool IsConst, typename R, typename... Args>
+template <FixedString Name_, auto MethodLam, bool IsConst_, typename R, typename... Args>
 class MethodImpl {
   protected:
     template <typename S>
-    using Ptr = R (*)(detail::ConditionalRef<S, IsConst>, Args...);
+    using Ptr = R (*)(detail::ConditionalRef<S, IsConst_>, Args...);
 
     using ProbePtr = Ptr<int>;
     alignas(ProbePtr) std::array<char, sizeof(ProbePtr)> funPtr;
 
   public:
     constexpr static inline auto Name = Name_;
+    constexpr static inline auto IsConst = IsConst_;
 
     template <typename S, typename T>
     MethodImpl(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
-        auto ptr = +[](detail::ConditionalRef<S, IsConst> s, Args... args) -> R {
+        auto ptr = +[](detail::ConditionalRef<S, IsConst_> s, Args... args) -> R {
             static constexpr auto m = MethodLam.template operator()<T>();
             return std::invoke(m,
-                               &detail::any_cast<detail::ConditionalRef<T, IsConst>>(s),
+                               &detail::any_cast<detail::ConditionalRef<T, IsConst_>>(s),
                                std::forward<Args>(args)...);
         };
         std::memcpy(funPtr.data(), &ptr, funPtr.size());
@@ -673,14 +678,14 @@ class MethodImpl {
 
     template <typename S>
     decltype(auto) invoke(S& s, Args&&... args)
-        requires(!IsConst) {
+        requires(!IsConst_) {
         return std::invoke(
             *reinterpret_cast<Ptr<S>*>(funPtr.data()), s, std::forward<Args&&>(args)...);
     }
 
     template <typename S>
     decltype(auto) invoke(S& s, Args&&... args) const
-        requires(IsConst) {
+        requires(IsConst_) {
         return std::invoke(
             *reinterpret_cast<const Ptr<S>*>(funPtr.data()), s, std::forward<Args&&>(args)...);
     }
@@ -770,13 +775,13 @@ template <typename Storage, typename... Ms>
 struct Interface : Ms... {
     template <detail::FixedString Name, typename... Args>
     constexpr inline decltype(auto) call(Args... args) {
-        return static_cast<detail::Find<Name, Ms...>::type*>(this)->invoke(
+        return static_cast<detail::Find<Name, false, Ms...>::type*>(this)->invoke(
             storage, std::forward<Args&&>(args)...);
     }
 
     template <detail::FixedString Name, typename... Args>
     constexpr inline decltype(auto) call(Args... args) const {
-        return static_cast<const detail::Find<Name, Ms...>::type*>(this)->invoke(
+        return static_cast<const detail::Find<Name, true, Ms...>::type*>(this)->invoke(
             storage, std::forward<Args&&>(args)...);
     }
 
