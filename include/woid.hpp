@@ -611,10 +611,10 @@ class FixedString {
 
 constexpr bool operator==(const FixedString& a, const FixedString& b) { return a.data == b.data; }
 
-template <FixedString Name, auto IsConst, typename T>
+template <FixedString Name, bool IsConst, typename T>
 constexpr inline bool kIsFound = Name == T::Name && IsConst == T::IsConst;
 
-template <FixedString Name, auto IsConst, typename Head, typename... Tail>
+template <FixedString Name, bool IsConst, typename Head, typename... Tail>
 struct Find {
     using type = std::conditional_t<kIsFound<Name, IsConst, Head>,
                                     std::type_identity<Head>,
@@ -625,6 +625,20 @@ template <FixedString Name, bool IsConst, typename Head>
 struct Find<Name, IsConst, Head> : std::type_identity<Head> {
     static_assert(kIsFound<Name, IsConst, Head>);
 };
+
+template <FixedString Name, bool IsConst, typename Head, typename... Tail>
+struct Contains : std::bool_constant<kIsFound<Name, IsConst, Head>
+                                     || Contains<Name, IsConst, Tail...>::value> {};
+
+template <FixedString Name, bool IsConst, typename Head>
+struct Contains<Name, IsConst, Head> : std::bool_constant<kIsFound<Name, IsConst, Head>> {};
+
+template <typename Head, typename... Tail>
+struct Unique : std::bool_constant<!Contains<Head::Name, Head::IsConst, Tail...>::value
+                                   && Unique<Tail...>::value> {};
+
+template <typename Head>
+struct Unique<Head> : std::true_type {};
 
 template <bool Const>
 struct RefImpl {
@@ -773,6 +787,7 @@ class Method<Name_, R(Args...) const, MethodLam>
 
 template <typename Storage, typename... Ms>
 struct Interface : Ms... {
+    static_assert(detail::Unique<Ms...>::value, "Method (Name, constness) should be unique.");
     template <detail::FixedString Name, typename... Args>
     constexpr inline decltype(auto) call(Args... args) {
         return static_cast<detail::Find<Name, false, Ms...>::type*>(this)->invoke(
