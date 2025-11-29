@@ -645,6 +645,47 @@ struct RefImpl {
     }
 };
 
+template <typename T, bool IsConst>
+using ConditionalRef = std::conditional_t<IsConst, const T&, T&>;
+
+template <FixedString Name_, auto MethodLam, bool IsConst, typename R, typename... Args>
+class MethodImpl {
+  protected:
+    template <typename S>
+    using Ptr = R (*)(detail::ConditionalRef<S, IsConst>, Args...);
+
+    using ProbePtr = Ptr<int>;
+    alignas(ProbePtr) std::array<char, sizeof(ProbePtr)> funPtr;
+
+  public:
+    constexpr static inline auto Name = Name_;
+
+    template <typename S, typename T>
+    MethodImpl(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
+        auto ptr = +[](detail::ConditionalRef<S, IsConst> s, Args... args) -> R {
+            static constexpr auto m = MethodLam.template operator()<T>();
+            return std::invoke(m,
+                               &detail::any_cast<detail::ConditionalRef<T, IsConst>>(s),
+                               std::forward<Args>(args)...);
+        };
+        std::memcpy(funPtr.data(), &ptr, funPtr.size());
+    }
+
+    template <typename S>
+    decltype(auto) invoke(S& s, Args&&... args)
+        requires(!IsConst) {
+        return std::invoke(
+            *reinterpret_cast<Ptr<S>*>(funPtr.data()), s, std::forward<Args&&>(args)...);
+    }
+
+    template <typename S>
+    decltype(auto) invoke(S& s, Args&&... args) const
+        requires(IsConst) {
+        return std::invoke(
+            *reinterpret_cast<const Ptr<S>*>(funPtr.data()), s, std::forward<Args&&>(args)...);
+    }
+};
+
 } // namespace detail
 
 struct Ref : detail::RefImpl<false> {
@@ -712,57 +753,21 @@ template <detail::FixedString Name_, typename M, auto MethodLam>
 class Method;
 
 template <typename R, typename... Args, detail::FixedString Name_, auto MethodLam>
-class Method<Name_, R(Args...), MethodLam> {
-    template <typename S>
-    using Ptr = R (*)(S&, Args...);
-
-    using ProbePtr = Ptr<int>;
-    alignas(ProbePtr) std::array<char, sizeof(ProbePtr)> funPtr;
+class Method<Name_, R(Args...), MethodLam>
+      : public detail::MethodImpl<Name_, MethodLam, false, R, Args...> {
+    using Base = detail::MethodImpl<Name_, MethodLam, false, R, Args...>;
 
   public:
-    constexpr static inline auto Name = Name_;
-
-    template <typename S, typename T>
-    Method(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
-        auto ptr = +[](S& s, Args... args) -> R {
-            static constexpr auto m = MethodLam.template operator()<T>();
-            return std::invoke(m, &any_cast<T&>(s), std::forward<Args...>(args)...);
-        };
-        std::memcpy(funPtr.data(), &ptr, funPtr.size());
-    }
-
-    template <typename S>
-    decltype(auto) invoke(S& s, Args&&... args) {
-        return std::invoke(
-            *reinterpret_cast<Ptr<S>*>(funPtr.data()), s, std::forward<Args&&>(args)...);
-    }
+    using detail::MethodImpl<Name_, MethodLam, false, R, Args...>::MethodImpl;
 };
 
 template <typename R, typename... Args, detail::FixedString Name_, auto MethodLam>
-class Method<Name_, R(Args...) const, MethodLam> {
-    template <typename S>
-    using Ptr = R (*)(const S&, Args...);
-
-    using ProbePtr = Ptr<int>;
-    alignas(ProbePtr) std::array<char, sizeof(ProbePtr)> funPtr;
+class Method<Name_, R(Args...) const, MethodLam>
+      : public detail::MethodImpl<Name_, MethodLam, true, R, Args...> {
+    using Base = detail::MethodImpl<Name_, MethodLam, true, R, Args...>;
 
   public:
-    constexpr static inline auto Name = Name_;
-
-    template <typename S, typename T>
-    Method(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
-        auto ptr = +[](const S& s, Args... args) -> R {
-            static constexpr auto m = MethodLam.template operator()<T>();
-            return std::invoke(m, &any_cast<const T&>(s), std::forward<Args...>(args)...);
-        };
-        std::memcpy(funPtr.data(), &ptr, funPtr.size());
-    }
-
-    template <typename S>
-    decltype(auto) invoke(S& s, Args&&... args) const {
-        return std::invoke(
-            *reinterpret_cast<const Ptr<S>*>(funPtr.data()), s, std::forward<Args&&>(args)...);
-    }
+    using detail::MethodImpl<Name_, MethodLam, true, R, Args...>::MethodImpl;
 };
 
 template <typename Storage, typename... Ms>
