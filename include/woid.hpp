@@ -755,8 +755,6 @@ class Method;
 template <typename R, typename... Args, detail::FixedString Name_, auto MethodLam>
 class Method<Name_, R(Args...), MethodLam>
       : public detail::MethodImpl<Name_, MethodLam, false, R, Args...> {
-    using Base = detail::MethodImpl<Name_, MethodLam, false, R, Args...>;
-
   public:
     using detail::MethodImpl<Name_, MethodLam, false, R, Args...>::MethodImpl;
 };
@@ -764,8 +762,6 @@ class Method<Name_, R(Args...), MethodLam>
 template <typename R, typename... Args, detail::FixedString Name_, auto MethodLam>
 class Method<Name_, R(Args...) const, MethodLam>
       : public detail::MethodImpl<Name_, MethodLam, true, R, Args...> {
-    using Base = detail::MethodImpl<Name_, MethodLam, true, R, Args...>;
-
   public:
     using detail::MethodImpl<Name_, MethodLam, true, R, Args...>::MethodImpl;
 };
