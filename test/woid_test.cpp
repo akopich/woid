@@ -438,6 +438,22 @@ TYPED_TEST(StorageType, storagePropertiesArePropagatedToTheFun) {
     checkTraitSame<std::is_nothrow_move_assignable, Storage, Fun>();
 }
 
+constexpr static auto FunctionTypes
+    = hana::tuple_t<void(void), void(void) const, void(void) const noexcept, void(void) noexcept>;
+constexpr static auto FunRefTypes = hana::transform(FunctionTypes, hana::template_<FunRef>);
+
+template <typename T>
+struct FunRefType : testing::Test {};
+TYPED_TEST_SUITE(FunRefType, AsTuple<FunRefTypes>);
+
+TYPED_TEST(FunRefType, hasValueSemantics) {
+    using Fun = TypeParam;
+    static_assert(std::is_copy_constructible_v<Fun>);
+    static_assert(std::is_copy_assignable_v<Fun>);
+    static_assert(std::is_move_constructible_v<Fun>);
+    static_assert(std::is_move_assignable_v<Fun>);
+}
+
 TYPED_TEST(StorageType, canCallOverloaded) {
     using Storage = TypeParam;
     auto add2 = [](int x, int y) { return x + y; };

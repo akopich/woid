@@ -57,6 +57,9 @@ struct DefaultAllocator {
 
 struct BadAnyCast {};
 
+struct Ref;
+struct CRef;
+
 namespace detail {
 
 template <typename T>
@@ -434,21 +437,6 @@ class DynamicStorage {
     }
 };
 
-class Ref {
-  private:
-    // it's used
-    [[maybe_unused]] void* obj;
-
-  public:
-    template <typename T>
-    explicit Ref(T& t) : obj(&t) {}
-
-    template <typename T, typename Self>
-    T get(this Self&& self) {
-        return star<T, Self>(std::forward<Self>(self).obj);
-    }
-};
-
 template <typename T, typename Storage>
 decltype(auto) any_cast(Storage&& s) {
     return std::forward<Storage>(s).template get<T>();
@@ -585,27 +573,27 @@ template <typename>
 struct MonoFunRef;
 
 template <typename R, typename... Args>
-struct MonoFunRef<R(Args...) const> : MonoFun<detail::Ref, R(Args...) const> {
+struct MonoFunRef<R(Args...) const> : MonoFun<CRef, R(Args...) const> {
     template <typename F>
-    explicit MonoFunRef(const F* f) : MonoFun<detail::Ref, R(Args...) const>{*const_cast<F*>(f)} {}
+    explicit MonoFunRef(const F* f) : MonoFun<CRef, R(Args...) const>{*f} {}
 };
 
 template <typename R, typename... Args>
-struct MonoFunRef<R(Args...) const noexcept> : MonoFun<detail::Ref, R(Args...) const noexcept> {
+struct MonoFunRef<R(Args...) const noexcept> : MonoFun<CRef, R(Args...) const noexcept> {
     template <typename F>
-    explicit MonoFunRef(const F* f) : MonoFun<detail::Ref, R(Args...) const>{*const_cast<F*>(f)} {}
+    explicit MonoFunRef(const F* f) : MonoFun<CRef, R(Args...) const>{*f} {}
 };
 
 template <typename R, typename... Args>
-struct MonoFunRef<R(Args...)> : MonoFun<detail::Ref, R(Args...)> {
+struct MonoFunRef<R(Args...)> : MonoFun<Ref, R(Args...)> {
     template <typename F>
-    explicit MonoFunRef(F* f) : MonoFun<detail::Ref, R(Args...)>{*f} {}
+    explicit MonoFunRef(F* f) : MonoFun<Ref, R(Args...)>{*f} {}
 };
 
 template <typename R, typename... Args>
-struct MonoFunRef<R(Args...) noexcept> : MonoFun<detail::Ref, R(Args...) noexcept> {
+struct MonoFunRef<R(Args...) noexcept> : MonoFun<Ref, R(Args...) noexcept> {
     template <typename F>
-    explicit MonoFunRef(F* f) : MonoFun<detail::Ref, R(Args...)>{*f} {}
+    explicit MonoFunRef(F* f) : MonoFun<Ref, R(Args...)>{*f} {}
 };
 
 class FixedString {
@@ -634,7 +622,30 @@ struct Find<Name, Head> : std::type_identity<Head> {
     static_assert(Name == Head::Name);
 };
 
+template <bool Const>
+struct RefImpl {
+  private:
+    // it's used
+    [[maybe_unused]] std::conditional_t<Const, const void*, void*> obj;
+
+  public:
+    template <typename T>
+        requires(Const || !std::is_const_v<T>) explicit RefImpl(T& t) : obj(&t) {}
+
+    template <typename T, typename Self>
+    T get(this Self&& self) {
+        return star<T, Self>(std::forward<Self>(self).obj);
+    }
+};
+
 } // namespace detail
+
+struct Ref : detail::RefImpl<false> {
+    using detail::RefImpl<false>::RefImpl;
+};
+struct CRef : detail::RefImpl<true> {
+    using detail::RefImpl<true>::RefImpl;
+};
 
 template <size_t Size,
           Copy kCopy = Copy::ENABLED,

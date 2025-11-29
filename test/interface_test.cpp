@@ -84,7 +84,7 @@ TEST(InterfaceRefTest, worksWithRefToo) {
     C c{};
     CC cc{};
 
-    std::vector<IncAndTwice<detail::Ref>> v;
+    std::vector<IncAndTwice<Ref>> v;
 
     v.emplace_back(c);
     v.emplace_back(cc);
