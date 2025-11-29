@@ -621,6 +621,9 @@ TEST(CRef, canCreateAndGet) {
 TEST(Ref, canConvert) {
     int a = 1;
     Ref ra{a};
+
+    CRef cra{ra};
+    ASSERT_EQ(any_cast<const int&>(cra), a);
 }
 
 #if defined(__cpp_exceptions)

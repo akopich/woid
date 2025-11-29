@@ -624,9 +624,14 @@ struct Find<Name, Head> : std::type_identity<Head> {
 
 template <bool Const>
 struct RefImpl {
-  private:
+  protected:
     // it's used
-    [[maybe_unused]] std::conditional_t<Const, const void*, void*> obj;
+    using Obj = std::conditional_t<Const, const void*, void*>;
+    [[maybe_unused]] Obj obj;
+
+    struct ConversionTag {};
+
+    RefImpl(ConversionTag, Obj obj) : obj(obj) {}
 
   public:
     template <typename T>
@@ -644,9 +649,14 @@ struct RefImpl {
 
 struct Ref : detail::RefImpl<false> {
     using detail::RefImpl<false>::RefImpl;
+
+    friend CRef;
 };
+
 struct CRef : detail::RefImpl<true> {
     using detail::RefImpl<true>::RefImpl;
+
+    CRef(Ref ref) : detail::RefImpl<true>{ConversionTag{}, ref.obj} {}
 };
 
 template <size_t Size,
