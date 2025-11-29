@@ -634,7 +634,9 @@ struct RefImpl {
 
     template <typename T, typename Self>
     T get(this Self&& self) {
-        return star<T, Self>(std::forward<Self>(self).obj);
+        using TnoRef = std::remove_cvref_t<T>;
+        using TP = std::conditional_t<Const, const TnoRef*, TnoRef*>;
+        return *static_cast<TP>(self.obj);
     }
 };
 

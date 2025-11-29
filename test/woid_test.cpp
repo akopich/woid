@@ -351,6 +351,17 @@ TYPED_TEST(MoveTestCase, canMoveAssignToMovedFrom) {
     ASSERT_EQ(Value::cnt, 0);
 }
 
+TYPED_TEST(MoveTestCase, canGetConstRef) {
+    using Storage = TypeParam::Storage;
+    using Value = TypeParam::Value;
+    {
+        const Storage s{kInt};
+        ASSERT_EQ(any_cast<const int&>(s), kInt);
+    }
+
+    ASSERT_EQ(Value::cnt, 0);
+}
+
 TYPED_TEST(StorageType, canGetByValue) {
     using Value = int;
     using Storage = TypeParam;
@@ -561,6 +572,55 @@ TEST(FunRef, canCall) {
     F fRef{&doubleAdd};
     static_assert(IsMovableAndCopyable<F>);
     ASSERT_EQ(fRef(2, 5), doubleAdd(2, 5));
+}
+
+template <typename T>
+struct RefTest : testing::Test {};
+
+using RefTypes = testing::Types<Ref, CRef>;
+TYPED_TEST_SUITE(RefTest, RefTypes);
+
+TYPED_TEST(RefTest, canCreateAndGet) {
+    using R = TypeParam;
+
+    int a = 1;
+    int b = 2;
+    R ra{a};
+    R rb{b};
+
+    ASSERT_EQ(any_cast<const int&>(rb), b);
+    ASSERT_EQ(any_cast<int>(ra), a);
+    ASSERT_EQ(any_cast<int>(rb), b);
+
+    std::swap(ra, rb);
+    ASSERT_EQ(any_cast<int>(rb), a);
+    ASSERT_EQ(any_cast<int>(ra), b);
+}
+
+TYPED_TEST(RefTest, canCopyAndMove) {
+    using R = TypeParam;
+    static_assert(IsMovableAndCopyable<R>);
+}
+
+TEST(CRef, canCreateAndGet) {
+    constexpr int a = 1;
+    constexpr int b = 2;
+    CRef ra{a};
+    CRef rb{b};
+
+    ASSERT_EQ(any_cast<int>(ra), a);
+    ASSERT_EQ(any_cast<int>(rb), b);
+    ASSERT_EQ(any_cast<const int&>(ra), a);
+    ASSERT_EQ(any_cast<const int&>(rb), b);
+
+    std::swap(ra, rb);
+    ASSERT_EQ(any_cast<const int&>(rb), a);
+    ASSERT_EQ(any_cast<const int&>(ra), b);
+}
+
+TEST(Ref, canConvert) {
+    int a = 1;
+    Ref ra{a};
 }
 
 #if defined(__cpp_exceptions)
