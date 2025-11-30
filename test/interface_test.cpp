@@ -34,7 +34,7 @@ struct IncAndTwice
                   Method<"inc", void(void), []<typename T> { return &T::inc; }>,
                   Method<"twice", void(void), []<typename T> { return &T::twice; }>> {
 
-    void set(size_t i) { this->template call<"set", size_t>(i); }
+    void set(size_t i) { this->template call<"set">(i); }
     size_t get() const { return this->template call<"get">(); }
     void inc() { this->template call<"inc">(); }
     void twice() { this->template call<"twice">(); }
@@ -120,21 +120,48 @@ TYPED_TEST(InterfaceTest, storagePropertiesArePropagatedToTheInterface) {
 struct G {
     int get() { return 5; }
     int get() const { return 45; }
+
+    bool isInt(int) { return true; }
+    bool isInt(float) { return false; }
+
+    int addAll(int i, const int j, const int& k, int& l, int&& m) { return i + j + k + l + m; }
 };
 
 struct GI
       : Interface<
             Any<8>,
+            Method<"addAll",
+                   int(int, const int, const int&, int&, int&&),
+                   []<typename T> { return &T::addAll; }>,
+            Method<"isInt",
+                   bool(int),
+                   []<typename T> { return static_cast<bool (T::*)(int)>(&T::isInt); }>,
+            Method<"isInt",
+                   bool(float),
+                   []<typename T> { return static_cast<bool (T::*)(float)>(&T::isInt); }>,
             Method<"get", int(void), []<typename T> { return static_cast<int (T::*)()>(&T::get); }>,
-
             Method<"get", int(void) const, []<typename T> {
                 return static_cast<int (T::*)() const>(&T::get);
             }>> {};
 
-TEST(ConstVsNoConst, constOverload) {
+TEST(Overloads, constOverload) {
     GI g{G{}};
     ASSERT_EQ(g.call<"get">(), 5);
 
     const GI cg = g;
     ASSERT_EQ(cg.call<"get">(), 45);
+}
+
+TEST(Overloads, argTypeOverload) {
+    GI g{G{}};
+    ASSERT_TRUE(g.call<"isInt">(int{0}));
+    ASSERT_FALSE(g.call<"isInt">(float{0}));
+}
+
+TEST(Overloads, propagatesConstRef) {
+    GI g{G{}};
+
+    int i = 4;
+    int j = 5;
+    ASSERT_EQ(g.call<"addAll">(1, 2, 3, i, std::move(j)), 15);
 }

@@ -62,6 +62,9 @@ struct CRef;
 
 namespace detail {
 
+template <typename... Ts>
+struct Typelist;
+
 template <typename T>
 class TypeTag {
     using Type = T;
@@ -615,30 +618,11 @@ template <FixedString Name, bool IsConst, typename T>
 constexpr inline bool kIsFound = Name == T::Name && IsConst == T::IsConst;
 
 template <FixedString Name, bool IsConst, typename Head, typename... Tail>
-struct Find {
-    using type = std::conditional_t<kIsFound<Name, IsConst, Head>,
-                                    std::type_identity<Head>,
-                                    Find<Name, IsConst, Tail...>>::type;
-};
-
-template <FixedString Name, bool IsConst, typename Head>
-struct Find<Name, IsConst, Head> : std::type_identity<Head> {
-    static_assert(kIsFound<Name, IsConst, Head>);
-};
-
-template <FixedString Name, bool IsConst, typename Head, typename... Tail>
 struct Contains : std::bool_constant<kIsFound<Name, IsConst, Head>
                                      || Contains<Name, IsConst, Tail...>::value> {};
 
 template <FixedString Name, bool IsConst, typename Head>
 struct Contains<Name, IsConst, Head> : std::bool_constant<kIsFound<Name, IsConst, Head>> {};
-
-template <typename Head, typename... Tail>
-struct Unique : std::bool_constant<!Contains<Head::Name, Head::IsConst, Tail...>::value
-                                   && Unique<Tail...>::value> {};
-
-template <typename Head>
-struct Unique<Head> : std::true_type {};
 
 template <bool Const>
 struct RefImpl {
@@ -663,14 +647,41 @@ struct RefImpl {
     }
 };
 
+template <typename M, typename NameT, typename IsConstT, typename ArgsList>
+struct OverloadImpl;
+
+template <typename M, typename NameT, typename IsConstT, typename... Args>
+struct OverloadImpl<M, NameT, IsConstT, Typelist<Args...>> {
+    static M probe(NameT, IsConstT, Args...);
+};
+
+template <auto V>
+struct ValueTag {};
+
+template <typename M>
+struct Overload : OverloadImpl<M, ValueTag<M::Name>, ValueTag<M::IsConst>, typename M::Args> {};
+
+template <FixedString Name, bool IsConst, typename ArgList, typename... Ms>
+struct FindBest;
+
+template <FixedString Name, bool IsConst, typename... Args, typename... Ms>
+struct FindBest<Name, IsConst, Typelist<Args...>, Ms...> : Overload<Ms>... {
+    using Overload<Ms>::probe...;
+
+    using type = decltype(probe(ValueTag<Name>{}, ValueTag<IsConst>{}, std::declval<Args>()...));
+};
+
+template <FixedString Name, bool IsConst, typename ArgList, typename... Ms>
+using FindBestT = FindBest<Name, IsConst, ArgList, Ms...>::type;
+
 template <typename T, bool IsConst>
 using ConditionalRef = std::conditional_t<IsConst, const T&, T&>;
 
-template <FixedString Name_, auto MethodLam, bool IsConst_, typename R, typename... Args>
+template <FixedString Name_, auto MethodLam, bool IsConst_, typename R, typename... Args_>
 class MethodImpl {
   protected:
     template <typename S>
-    using Ptr = R (*)(detail::ConditionalRef<S, IsConst_>, Args...);
+    using Ptr = R (*)(detail::ConditionalRef<S, IsConst_>, Args_...);
 
     using ProbePtr = Ptr<int>;
     alignas(ProbePtr) std::array<char, sizeof(ProbePtr)> funPtr;
@@ -678,30 +689,31 @@ class MethodImpl {
   public:
     constexpr static inline auto Name = Name_;
     constexpr static inline auto IsConst = IsConst_;
+    using Args = Typelist<Args_...>;
 
     template <typename S, typename T>
     MethodImpl(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
-        auto ptr = +[](detail::ConditionalRef<S, IsConst_> s, Args... args) -> R {
+        auto ptr = +[](detail::ConditionalRef<S, IsConst_> s, Args_... args) -> R {
             static constexpr auto m = MethodLam.template operator()<T>();
             return std::invoke(m,
                                &detail::any_cast<detail::ConditionalRef<T, IsConst_>>(s),
-                               std::forward<Args>(args)...);
+                               std::forward<Args_>(args)...);
         };
         std::memcpy(funPtr.data(), &ptr, funPtr.size());
     }
 
     template <typename S>
-    decltype(auto) invoke(S& s, Args&&... args)
+    decltype(auto) invoke(S& s, Args_&&... args)
         requires(!IsConst_) {
         return std::invoke(
-            *reinterpret_cast<Ptr<S>*>(funPtr.data()), s, std::forward<Args&&>(args)...);
+            *reinterpret_cast<Ptr<S>*>(funPtr.data()), s, std::forward<Args_&&>(args)...);
     }
 
     template <typename S>
-    decltype(auto) invoke(S& s, Args&&... args) const
+    decltype(auto) invoke(S& s, Args_&&... args) const
         requires(IsConst_) {
         return std::invoke(
-            *reinterpret_cast<const Ptr<S>*>(funPtr.data()), s, std::forward<Args&&>(args)...);
+            *reinterpret_cast<const Ptr<S>*>(funPtr.data()), s, std::forward<Args_&&>(args)...);
     }
 };
 
@@ -787,17 +799,18 @@ class Method<Name_, R(Args...) const, MethodLam>
 
 template <typename Storage, typename... Ms>
 struct Interface : Ms... {
-    static_assert(detail::Unique<Ms...>::value, "Method (Name, constness) should be unique.");
     template <detail::FixedString Name, typename... Args>
-    constexpr inline decltype(auto) call(Args... args) {
-        return static_cast<detail::Find<Name, false, Ms...>::type*>(this)->invoke(
-            storage, std::forward<Args&&>(args)...);
+    constexpr inline decltype(auto) call(Args&&... args) {
+        return static_cast<detail::FindBestT<Name, false, detail::Typelist<Args&&...>, Ms...>*>(
+                   this)
+            ->invoke(storage, std::forward<Args&&>(args)...);
     }
 
     template <detail::FixedString Name, typename... Args>
-    constexpr inline decltype(auto) call(Args... args) const {
-        return static_cast<const detail::Find<Name, true, Ms...>::type*>(this)->invoke(
-            storage, std::forward<Args&&>(args)...);
+    constexpr inline decltype(auto) call(Args&&... args) const {
+        return static_cast<
+                   const detail::FindBestT<Name, true, detail::Typelist<Args&&...>, Ms...>*>(this)
+            ->invoke(storage, std::forward<Args&&>(args)...);
     }
 
     Storage storage;
