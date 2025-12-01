@@ -40,6 +40,8 @@ enum class FunPtr { COMBINED, DEDICATED };
 // `#define WOID_SYMBOL_VISIBILITY`.
 enum class SafeAnyCast { ENABLED, DISABLED };
 
+enum class VTableOwnership { SHARED, DEDICATED };
+
 struct TransferOwnership {};
 inline TransferOwnership kTransferOwnership{};
 
@@ -717,6 +719,32 @@ class MethodImpl {
     }
 };
 
+template <typename Storage, typename... Ms>
+struct VTable : Ms... {
+    template <typename T>
+    VTable(TypeTag<Storage>, TypeTag<T>)
+          : Ms{detail::TypeTag<Storage>{}, detail::TypeTag<std::remove_cvref_t<T>>{}}... {}
+
+    template <FixedString Name, typename... Args, typename Self>
+    constexpr auto* getMethod(this Self&& self) {
+        constexpr bool IsConst = std::is_const_v<std::remove_reference_t<Self>>;
+        using Result = RetainConstPtr<Self, FindBestT<Name, IsConst, Typelist<Args...>, Ms...>>;
+        return static_cast<Result>(&self);
+    }
+};
+
+template <typename Storage, typename... Ms>
+struct HasVTable {
+    VTable<Storage, Ms...> vTable;
+
+    template <typename T>
+    HasVTable(TypeTag<Storage> s, TypeTag<T> t) : vTable(s, t) {}
+};
+
+template <VTableOwnership O, typename Storage, typename... Ms>
+using HasOrIsVTable = std::
+    conditional<O == VTableOwnership::SHARED, HasVTable<Storage, Ms...>, VTable<Storage, Ms...>>;
+
 } // namespace detail
 
 struct Ref : detail::RefImpl<false> {
@@ -798,26 +826,24 @@ class Method<Name_, R(Args...) const, MethodLam>
 };
 
 template <typename Storage, typename... Ms>
-struct Interface : Ms... {
+struct Interface : detail::VTable<Storage, Ms...> {
     template <detail::FixedString Name, typename... Args>
     constexpr inline decltype(auto) call(Args&&... args) {
-        return static_cast<detail::FindBestT<Name, false, detail::Typelist<Args&&...>, Ms...>*>(
-                   this)
-            ->invoke(storage, std::forward<Args&&>(args)...);
+        return this->template getMethod<Name, Args&&...>()->invoke(storage,
+                                                                   std::forward<Args&&>(args)...);
     }
 
     template <detail::FixedString Name, typename... Args>
     constexpr inline decltype(auto) call(Args&&... args) const {
-        return static_cast<
-                   const detail::FindBestT<Name, true, detail::Typelist<Args&&...>, Ms...>*>(this)
-            ->invoke(storage, std::forward<Args&&>(args)...);
+        return this->template getMethod<Name, Args&&...>()->invoke(storage,
+                                                                   std::forward<Args&&>(args)...);
     }
 
     Storage storage;
 
     template <typename T>
     Interface(T&& t)
-          : Ms{detail::TypeTag<Storage>{}, detail::TypeTag<std::remove_cvref_t<T>>{}}...,
+          : detail::VTable<Storage, Ms...>{detail::TypeTag<Storage>{}, detail::TypeTag<T>{}},
             storage{std::forward<T>(t)} {}
 };
 
