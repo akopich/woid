@@ -3,10 +3,14 @@
 
 #include "woid.hpp"
 
+#include <boost/hana.hpp>
+#include <boost/hana/fwd/filter.hpp>
 #include <gtest/gtest-typed-test.h>
 #include <gtest/gtest.h>
+#include <print>
 
 using namespace woid;
+namespace hana = boost::hana;
 
 struct C {
     static inline size_t cnt = 0;
@@ -24,11 +28,10 @@ struct CC {
     void twice() { cnt *= 4; }
 };
 
-using Storages = testing::Types<woid::Any<8, Copy::ENABLED>, woid::Any<8, Copy::DISABLED>>;
-
-template <typename S>
+template <VTableOwnership O, typename S>
 struct IncAndTwice
-      : Interface<S,
+      : Interface<O,
+                  S,
                   Method<"set", void(int), []<typename T> { return &T::set; }>,
                   Method<"get", size_t(void) const, []<typename T> { return &T::get; }>,
                   Method<"inc", void(void), []<typename T> { return &T::inc; }>,
@@ -40,6 +43,12 @@ struct IncAndTwice
     void twice() { this->template call<"twice">(); }
 };
 
+using TestCases
+    = testing::Types<IncAndTwice<VTableOwnership::DEDICATED, woid::Any<8, Copy::ENABLED>>,
+                     IncAndTwice<VTableOwnership::DEDICATED, woid::Any<8, Copy::DISABLED>>,
+                     IncAndTwice<VTableOwnership::SHARED, woid::Any<8, Copy::ENABLED>>,
+                     IncAndTwice<VTableOwnership::SHARED, woid::Any<8, Copy::DISABLED>>>;
+
 template <typename T>
 struct InterfaceTest : testing::Test {
     ~InterfaceTest() {
@@ -48,24 +57,24 @@ struct InterfaceTest : testing::Test {
     }
 };
 
-TYPED_TEST_SUITE(InterfaceTest, Storages);
+TYPED_TEST_SUITE(InterfaceTest, TestCases);
 
 TYPED_TEST(InterfaceTest, canCallMethods) {
-    using Storage = TypeParam;
+    using I = TypeParam;
 
-    IncAndTwice<Storage> it{C{}};
+    I it{C{}};
     it.set(3);
     it.inc();
     it.twice();
     it.twice();
 
-    ASSERT_EQ(static_cast<const IncAndTwice<Storage>&>(it).get(), 16);
+    ASSERT_EQ(static_cast<const I&>(it).get(), 16);
 }
 
 TYPED_TEST(InterfaceTest, andPutThemAllInVector) {
-    using Storage = TypeParam;
+    using I = TypeParam;
 
-    std::vector<IncAndTwice<Storage>> v;
+    std::vector<I> v;
 
     v.emplace_back(C{});
     v.emplace_back(CC{});
@@ -81,11 +90,27 @@ TYPED_TEST(InterfaceTest, andPutThemAllInVector) {
     ASSERT_EQ(CC::cnt, 24);
 }
 
-TEST(InterfaceRefTest, worksWithRefToo) {
+constexpr auto VTableOwnderships
+    = hana::tuple_c<VTableOwnership, VTableOwnership::SHARED, VTableOwnership::DEDICATED>;
+template <auto HanaTuple>
+using AsTuple = decltype(hana::unpack(HanaTuple, hana::template_<testing::Types>))::type;
+
+template <typename T>
+struct VTableParameterizedTest : testing::Test {
+    ~VTableParameterizedTest() {
+        C::cnt = 0;
+        CC::cnt = 0;
+    }
+};
+
+TYPED_TEST_SUITE(VTableParameterizedTest, AsTuple<VTableOwnderships>);
+
+TYPED_TEST(VTableParameterizedTest, worksWithRefToo) {
+    static constexpr auto O = TypeParam::value;
     C c{};
     CC cc{};
 
-    std::vector<IncAndTwice<Ref>> v;
+    std::vector<IncAndTwice<O, Ref>> v;
 
     v.emplace_back(c);
     v.emplace_back(cc);
@@ -107,8 +132,8 @@ static void checkTraitSame() {
 }
 
 TYPED_TEST(InterfaceTest, storagePropertiesArePropagatedToTheInterface) {
-    using Storage = TypeParam;
-    using I = IncAndTwice<Storage>;
+    using Storage = TypeParam::Storage;
+    using I = TypeParam;
     checkTraitSame<std::is_copy_constructible, Storage, I>();
     checkTraitSame<std::is_copy_assignable, Storage, I>();
     checkTraitSame<std::is_move_constructible, Storage, I>();
@@ -127,8 +152,10 @@ struct G {
     int addAll(int i, const int j, const int& k, int& l, int&& m) { return i + j + k + l + m; }
 };
 
+template <VTableOwnership O>
 struct GI
       : Interface<
+            O,
             Any<8>,
             Method<"addAll",
                    int(int, const int, const int&, int&, int&&),
@@ -144,24 +171,27 @@ struct GI
                 return static_cast<int (T::*)() const>(&T::get);
             }>> {};
 
-TEST(Overloads, constOverload) {
-    GI g{G{}};
-    ASSERT_EQ(g.call<"get">(), 5);
+TYPED_TEST(VTableParameterizedTest, constOverload) {
+    static constexpr auto O = TypeParam::value;
+    GI<O> g{G{}};
+    ASSERT_EQ(g.template call<"get">(), 5);
 
     const GI cg = g;
-    ASSERT_EQ(cg.call<"get">(), 45);
+    ASSERT_EQ(cg.template call<"get">(), 45);
 }
 
-TEST(Overloads, argTypeOverload) {
-    GI g{G{}};
-    ASSERT_TRUE(g.call<"isInt">(int{0}));
-    ASSERT_FALSE(g.call<"isInt">(float{0}));
+TYPED_TEST(VTableParameterizedTest, argTypeOverload) {
+    static constexpr auto O = TypeParam::value;
+    GI<O> g{G{}};
+    ASSERT_TRUE(g.template call<"isInt">(int{0}));
+    ASSERT_FALSE(g.template call<"isInt">(float{0}));
 }
 
-TEST(Overloads, propagatesConstRef) {
-    GI g{G{}};
+TYPED_TEST(VTableParameterizedTest, propagatesConstRef) {
+    static constexpr auto O = TypeParam::value;
+    GI<O> g{G{}};
 
     int i = 4;
     int j = 5;
-    ASSERT_EQ(g.call<"addAll">(1, 2, 3, i, std::move(j)), 15);
+    ASSERT_EQ(g.template call<"addAll">(1, 2, 3, i, std::move(j)), 15);
 }

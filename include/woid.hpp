@@ -733,17 +733,35 @@ struct VTable : Ms... {
     }
 };
 
-template <typename Storage, typename... Ms>
+template <typename I, typename Storage, typename... Ms>
 struct HasVTable {
-    VTable<Storage, Ms...> vTable;
+  private:
+    using Table = VTable<Storage, Ms...>;
 
     template <typename T>
-    HasVTable(TypeTag<Storage> s, TypeTag<T> t) : vTable(s, t) {}
+    static inline Table* vTableStatic = nullptr;
+
+    Table* vTable;
+
+  public:
+    template <typename T>
+    HasVTable(TypeTag<Storage> s, TypeTag<T> t) {
+        if (vTableStatic<T> == nullptr) {
+            vTableStatic<T> = new VTable<Storage, Ms...>{s, t};
+        }
+        vTable = vTableStatic<T>;
+    }
+
+    template <typename Self>
+    RetainConstPtr<Self, Table> getVTable(this Self&& self) {
+        return self.vTable;
+    }
 };
 
-template <VTableOwnership O, typename Storage, typename... Ms>
-using HasOrIsVTable = std::
-    conditional<O == VTableOwnership::SHARED, HasVTable<Storage, Ms...>, VTable<Storage, Ms...>>;
+template <typename I, VTableOwnership O, typename Storage, typename... Ms>
+using HasOrIsVTable = std::conditional_t<O == VTableOwnership::SHARED,
+                                         HasVTable<I, Storage, Ms...>,
+                                         VTable<Storage, Ms...>>;
 
 } // namespace detail
 
@@ -825,26 +843,37 @@ class Method<Name_, R(Args...) const, MethodLam>
     using detail::MethodImpl<Name_, MethodLam, true, R, Args...>::MethodImpl;
 };
 
-template <typename Storage, typename... Ms>
-struct Interface : detail::VTable<Storage, Ms...> {
-    template <detail::FixedString Name, typename... Args>
-    constexpr inline decltype(auto) call(Args&&... args) {
-        return this->template getMethod<Name, Args&&...>()->invoke(storage,
-                                                                   std::forward<Args&&>(args)...);
-    }
+template <VTableOwnership O, typename Storage_, typename... Ms>
+struct Interface : detail::HasOrIsVTable<Interface<O, Storage_, Ms...>, O, Storage_, Ms...> {
+  private:
+    Storage_ storage;
 
-    template <detail::FixedString Name, typename... Args>
-    constexpr inline decltype(auto) call(Args&&... args) const {
-        return this->template getMethod<Name, Args&&...>()->invoke(storage,
-                                                                   std::forward<Args&&>(args)...);
-    }
+  public:
+    using Storage = Storage_;
+    constexpr static inline auto kVTableOwnership = O;
 
-    Storage storage;
+    template <detail::FixedString Name, typename... Args, typename Self>
+    constexpr inline decltype(auto) call(this Self&& self, Args&&... args) {
+        return self.vtable()->template getMethod<Name, Args&&...>()->invoke(
+            self.storage, std::forward<Args&&>(args)...);
+    }
 
     template <typename T>
     Interface(T&& t)
-          : detail::VTable<Storage, Ms...>{detail::TypeTag<Storage>{}, detail::TypeTag<T>{}},
+          : detail::HasOrIsVTable<Interface<O, Storage, Ms...>,
+                                  O,
+                                  Storage,
+                                  Ms...>{detail::TypeTag<Storage>{}, detail::TypeTag<T>{}},
             storage{std::forward<T>(t)} {}
+
+  private:
+    template <typename Self>
+    auto vtable(this Self&& self) {
+        if constexpr (O == VTableOwnership::DEDICATED)
+            return &self;
+        else
+            return self.getVTable();
+    };
 };
 
 } // namespace woid WOID_SYMBOL_VISIBILITY_FLAG
