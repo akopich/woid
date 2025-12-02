@@ -721,6 +721,7 @@ class MethodImpl {
 
 template <typename Storage, typename... Ms>
 struct VTable : Ms... {
+  protected:
     template <typename T>
     VTable(TypeTag<Storage>, TypeTag<T>)
           : Ms{detail::TypeTag<Storage>{}, detail::TypeTag<std::remove_cvref_t<T>>{}}... {}
@@ -739,17 +740,14 @@ struct HasVTable {
     using Table = VTable<Storage, Ms...>;
 
     template <typename T>
-    static inline Table* vTableStatic = nullptr;
+    static inline auto vTableStatic = Table{TypeTag<Storage>{}, TypeTag<T>{}};
 
     Table* vTable;
 
   public:
     template <typename T>
-    HasVTable(TypeTag<Storage> s, TypeTag<T> t) {
-        if (vTableStatic<T> == nullptr) {
-            vTableStatic<T> = new VTable<Storage, Ms...>{s, t};
-        }
-        vTable = vTableStatic<T>;
+    HasVTable(TypeTag<Storage>, TypeTag<T>) {
+        vTable = &vTableStatic<T>;
     }
 
     template <typename Self>
