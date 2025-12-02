@@ -721,7 +721,6 @@ class MethodImpl {
 
 template <typename Storage, typename... Ms>
 struct VTable : Ms... {
-  protected:
     template <typename T>
     VTable(TypeTag<Storage>, TypeTag<T>)
           : Ms{detail::TypeTag<Storage>{}, detail::TypeTag<std::remove_cvref_t<T>>{}}... {}

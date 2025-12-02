@@ -47,7 +47,11 @@ using TestCases
     = testing::Types<IncAndTwice<VTableOwnership::DEDICATED, woid::Any<8, Copy::ENABLED>>,
                      IncAndTwice<VTableOwnership::DEDICATED, woid::Any<8, Copy::DISABLED>>,
                      IncAndTwice<VTableOwnership::SHARED, woid::Any<8, Copy::ENABLED>>,
-                     IncAndTwice<VTableOwnership::SHARED, woid::Any<8, Copy::DISABLED>>>;
+                     IncAndTwice<VTableOwnership::SHARED, woid::Any<8, Copy::DISABLED>>,
+                     IncAndTwice<VTableOwnership::SHARED, detail::DynamicStorage<>>,
+                     IncAndTwice<VTableOwnership::DEDICATED, detail::DynamicStorage<>>
+
+                     >;
 
 template <typename T>
 struct InterfaceTest : testing::Test {
