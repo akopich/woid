@@ -27,21 +27,23 @@ struct CC {
     void twice() { cnt *= 4; }
 };
 
+// clang-format off
 template <VTableOwnership O, typename S>
-struct IncAndTwice : InterfaceBuilder ::With<O>::template WithStorage<
-                         S>::template Method<"set", void(int), []<typename T> {
-    return &T::set;
-}>::template Method<"get", size_t(void) const, []<typename T> {
-    return &T::get;
-}>::template Method<"inc", void(void), []<typename T> {
-    return &T::inc;
-}>::template Method<"twice", void(void), []<typename T> { return &T::twice; }>::Build {
-
+struct IncAndTwice
+      : InterfaceBuilder
+            ::With<O>
+            ::template WithStorage<S>
+            ::template Method<"set", void(int), []<typename T> { return &T::set; }>
+            ::template Method<"get", size_t(void) const, []<typename T> { return &T::get; }>
+            ::template Method<"inc", void(void), []<typename T> { return &T::inc; }>
+            ::template Method<"twice", void(void), []<typename T> { return &T::twice; }>
+            ::Build {
     void set(size_t i) { this->template call<"set">(i); }
     size_t get() const { return this->template call<"get">(); }
     void inc() { this->template call<"inc">(); }
     void twice() { this->template call<"twice">(); }
 };
+// clang-format on
 
 using TestCases
     = testing::Types<IncAndTwice<VTableOwnership::DEDICATED, woid::Any<8, Copy::ENABLED>>,
@@ -156,20 +158,18 @@ struct G {
     int addAll(int i, const int j, const int& k, int& l, int&& m) { return i + j + k + l + m; }
 };
 
+// clang-format off
 template <VTableOwnership O>
 struct GI
-      : InterfaceBuilder ::With<O>::
-            template Method<"addAll", int(int, const int, const int&, int&, int&&), []<typename T> {
-                return &T::addAll;
-            }>::template Method<"isInt", bool(int), []<typename T> {
-                return static_cast<bool (T::*)(int)>(&T::isInt);
-            }>::template Method<"isInt", bool(float), []<typename T> {
-                return static_cast<bool (T::*)(float)>(&T::isInt);
-            }>::template Method<"get", int(void), []<typename T> {
-                return static_cast<int (T::*)()>(&T::get);
-            }>::template Method<"get", int(void) const, []<typename T> {
-                return static_cast<int (T::*)() const>(&T::get);
-            }>::Build {};
+      : InterfaceBuilder
+            ::With<O>
+            ::template Method<"addAll", int(int, const int, const int&, int&, int&&), []<typename T> { return &T::addAll; }>
+            ::template Method<"isInt", bool(int), []<typename T> { return static_cast<bool (T::*)(int)>(&T::isInt); }>
+            ::template Method<"isInt", bool(float), []<typename T> { return static_cast<bool (T::*)(float)>(&T::isInt); }>
+            ::template Method<"get", int(void), []<typename T> { return static_cast<int (T::*)()>(&T::get); }>
+            ::template Method<"get", int(void) const, []<typename T> { return static_cast<int (T::*)() const>(&T::get); }>
+            ::Build {};
+// clang-format on
 
 TYPED_TEST(VTableParameterizedTest, constOverload) {
     static constexpr auto O = TypeParam::value;

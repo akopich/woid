@@ -189,11 +189,17 @@ struct CopyTypesCopyStorageTestCase : BaseTestCase<T> {};
 TYPED_TEST_SUITE(CopyTypesCopyStorageTestCase, AsTuple<CopyTypesCopyStorageTestCases>);
 
 TEST(AnyBuilder, canBuild) {
-    using ActualAny
-        = AnyBuilder ::WithSize<128>::WithAlignment<2 * alignof(void*)>::DisableCopy ::With<
-            ExceptionGuarantee::BASIC>::With<SafeAnyCast::ENABLED>::WithDedicatedFunPtr ::
-            WithAllocator<detail::OneChunkAllocator<1234>>::Build;
-
+    // clang-format off
+    using ActualAny = AnyBuilder
+                            ::WithSize<128>
+                            ::WithAlignment<2 * alignof(void*)>
+                            ::DisableCopy
+                            ::With<ExceptionGuarantee::BASIC>
+                            ::With<SafeAnyCast::ENABLED>
+                            ::WithDedicatedFunPtr
+                            ::WithAllocator<detail::OneChunkAllocator<1234>>
+                            ::Build;
+    // clang-format on
     using ExpectedAny = Any<128,
                             Copy::DISABLED,
                             ExceptionGuarantee::BASIC,
