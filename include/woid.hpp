@@ -799,6 +799,83 @@ struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Sta
                        Alloc>::Woid;
 };
 
+namespace detail {
+
+template <size_t Size = 8,
+          Copy kCopy = Copy::ENABLED,
+          ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
+          size_t Alignment = alignof(void*),
+          FunPtr kFunPtr = FunPtr::COMBINED,
+          SafeAnyCast kSafeAnyCast = SafeAnyCast::DISABLED,
+          typename Alloc = DefaultAllocator>
+struct AnyBuilderImpl {
+
+    template <auto V, class CurrentBuilder>
+    struct UpdateEnum {
+        using VType = decltype(V);
+        static_assert(std::is_same_v<VType, Copy>
+                          || std::is_same_v<VType, ExceptionGuarantee>
+                          || std::is_same_v<VType, FunPtr>
+                          || std::is_same_v<VType, SafeAnyCast>,
+                      "Template parameter V must be an enum constant of type Copy, "
+                      "ExceptionGuarantee, FunPtr, or SafeAnyCast.");
+        static consteval auto chooseType() {
+            if constexpr (std::is_same_v<VType, Copy>) {
+                return std::type_identity<
+                    AnyBuilderImpl<Size, V, Eg, Alignment, kFunPtr, kSafeAnyCast, Alloc>>{};
+            }
+            if constexpr (std::is_same_v<VType, ExceptionGuarantee>) {
+                return std::type_identity<
+                    AnyBuilderImpl<Size, kCopy, V, Alignment, kFunPtr, kSafeAnyCast, Alloc>>{};
+            }
+            if constexpr (std::is_same_v<VType, FunPtr>) {
+                return std::type_identity<
+                    AnyBuilderImpl<Size, kCopy, Eg, Alignment, V, kSafeAnyCast, Alloc>>{};
+            }
+            if constexpr (std::is_same_v<VType, SafeAnyCast>) {
+                return std::type_identity<
+                    AnyBuilderImpl<Size, kCopy, Eg, Alignment, kFunPtr, V, Alloc>>{};
+            }
+        }
+
+        using Type = decltype(chooseType())::type;
+    };
+
+    using CurrentBuilder = AnyBuilderImpl<Size, kCopy, Eg, Alignment, kFunPtr, kSafeAnyCast, Alloc>;
+
+    template <size_t NewSize>
+    using WithSize = AnyBuilderImpl<NewSize, kCopy, Eg, Alignment, kFunPtr, kSafeAnyCast, Alloc>;
+
+    template <size_t NewAlignment>
+    using WithAlignment
+        = AnyBuilderImpl<Size, kCopy, Eg, NewAlignment, kFunPtr, kSafeAnyCast, Alloc>;
+
+    template <typename NewAlloc>
+    using WithAllocator
+        = AnyBuilderImpl<Size, kCopy, Eg, Alignment, kFunPtr, kSafeAnyCast, NewAlloc>;
+
+    template <auto V>
+    using With = typename UpdateEnum<V, CurrentBuilder>::Type;
+
+    using EnableCopy = With<Copy::ENABLED>;
+    using DisableCopy = With<Copy::DISABLED>;
+
+    using WithNoExceptionGuarantee = With<ExceptionGuarantee::NONE>;
+    using WithBasicExceptionGuarantee = With<ExceptionGuarantee::BASIC>;
+    using WithStrongExceptionGuarantee = With<ExceptionGuarantee::STRONG>;
+
+    using WithDedicatedFunPtr = With<FunPtr::DEDICATED>;
+    using WithCombinedFunPtr = With<FunPtr::COMBINED>;
+
+    using EnableSafeAnyCast = With<SafeAnyCast::ENABLED>;
+    using DisableSafeAnyCast = With<SafeAnyCast::DISABLED>;
+
+    using Build = Any<Size, kCopy, Eg, Alignment, kFunPtr, kSafeAnyCast, Alloc>;
+};
+} // namespace detail
+
+using AnyBuilder = detail::AnyBuilderImpl<>;
+
 template <typename Storage, typename... Fs>
     requires(sizeof...(Fs) > 0) struct Fun : detail::MonoFun<Storage, Fs>... {
     template <typename... T>
@@ -872,5 +949,25 @@ struct Interface : detail::HasOrIsVTable<Interface<O, Storage_, Ms...>, O, Stora
             return self.getVTable();
     };
 };
+
+namespace detail {
+template <VTableOwnership O = VTableOwnership::DEDICATED,
+          typename Storage_ = Any<8>,
+          typename... Ms>
+struct InterfaceBuilderImpl {
+    template <VTableOwnership NewO>
+    using With = InterfaceBuilderImpl<NewO, Storage_, Ms...>;
+
+    template <typename S>
+    using WithStorage = InterfaceBuilderImpl<O, S, Ms...>;
+
+    template <detail::FixedString Name, typename M, auto MethodLam>
+    using Method = InterfaceBuilderImpl<O, Storage_, Ms..., woid::Method<Name, M, MethodLam>>;
+
+    using Build = Interface<O, Storage_, Ms...>;
+};
+} // namespace detail
+
+using InterfaceBuilder = detail::InterfaceBuilderImpl<>;
 
 } // namespace woid WOID_SYMBOL_VISIBILITY_FLAG

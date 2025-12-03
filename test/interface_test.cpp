@@ -7,7 +7,6 @@
 #include <boost/hana/fwd/filter.hpp>
 #include <gtest/gtest-typed-test.h>
 #include <gtest/gtest.h>
-#include <print>
 
 using namespace woid;
 namespace hana = boost::hana;
@@ -29,13 +28,14 @@ struct CC {
 };
 
 template <VTableOwnership O, typename S>
-struct IncAndTwice
-      : Interface<O,
-                  S,
-                  Method<"set", void(int), []<typename T> { return &T::set; }>,
-                  Method<"get", size_t(void) const, []<typename T> { return &T::get; }>,
-                  Method<"inc", void(void), []<typename T> { return &T::inc; }>,
-                  Method<"twice", void(void), []<typename T> { return &T::twice; }>> {
+struct IncAndTwice : InterfaceBuilder ::With<O>::template WithStorage<
+                         S>::template Method<"set", void(int), []<typename T> {
+    return &T::set;
+}>::template Method<"get", size_t(void) const, []<typename T> {
+    return &T::get;
+}>::template Method<"inc", void(void), []<typename T> {
+    return &T::inc;
+}>::template Method<"twice", void(void), []<typename T> { return &T::twice; }>::Build {
 
     void set(size_t i) { this->template call<"set">(i); }
     size_t get() const { return this->template call<"get">(); }
@@ -158,22 +158,18 @@ struct G {
 
 template <VTableOwnership O>
 struct GI
-      : Interface<
-            O,
-            Any<8>,
-            Method<"addAll",
-                   int(int, const int, const int&, int&, int&&),
-                   []<typename T> { return &T::addAll; }>,
-            Method<"isInt",
-                   bool(int),
-                   []<typename T> { return static_cast<bool (T::*)(int)>(&T::isInt); }>,
-            Method<"isInt",
-                   bool(float),
-                   []<typename T> { return static_cast<bool (T::*)(float)>(&T::isInt); }>,
-            Method<"get", int(void), []<typename T> { return static_cast<int (T::*)()>(&T::get); }>,
-            Method<"get", int(void) const, []<typename T> {
+      : InterfaceBuilder ::With<O>::
+            template Method<"addAll", int(int, const int, const int&, int&, int&&), []<typename T> {
+                return &T::addAll;
+            }>::template Method<"isInt", bool(int), []<typename T> {
+                return static_cast<bool (T::*)(int)>(&T::isInt);
+            }>::template Method<"isInt", bool(float), []<typename T> {
+                return static_cast<bool (T::*)(float)>(&T::isInt);
+            }>::template Method<"get", int(void), []<typename T> {
+                return static_cast<int (T::*)()>(&T::get);
+            }>::template Method<"get", int(void) const, []<typename T> {
                 return static_cast<int (T::*)() const>(&T::get);
-            }>> {};
+            }>::Build {};
 
 TYPED_TEST(VTableParameterizedTest, constOverload) {
     static constexpr auto O = TypeParam::value;

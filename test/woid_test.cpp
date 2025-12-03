@@ -188,6 +188,22 @@ template <typename T>
 struct CopyTypesCopyStorageTestCase : BaseTestCase<T> {};
 TYPED_TEST_SUITE(CopyTypesCopyStorageTestCase, AsTuple<CopyTypesCopyStorageTestCases>);
 
+TEST(AnyBuilder, canBuild) {
+    using ActualAny
+        = AnyBuilder ::WithSize<128>::WithAlignment<2 * alignof(void*)>::DisableCopy ::With<
+            ExceptionGuarantee::BASIC>::With<SafeAnyCast::ENABLED>::WithDedicatedFunPtr ::
+            WithAllocator<detail::OneChunkAllocator<1234>>::Build;
+
+    using ExpectedAny = Any<128,
+                            Copy::DISABLED,
+                            ExceptionGuarantee::BASIC,
+                            2 * alignof(void*),
+                            FunPtr::DEDICATED,
+                            SafeAnyCast::ENABLED,
+                            detail::OneChunkAllocator<1234>>;
+    static_assert(std::is_same_v<ActualAny, ExpectedAny>);
+}
+
 TYPED_TEST(CopyTypesTestCase, canInstantiateFromRef) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
