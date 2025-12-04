@@ -71,6 +71,9 @@ target_link_libraries(CopyBench benchmark::benchmark)
 add_executable(FunBench bench/fun_bench.cpp)
 target_link_libraries(FunBench benchmark::benchmark)
 
+add_executable(InterfaceBench bench/interface_bench.cpp)
+target_link_libraries(InterfaceBench benchmark::benchmark)
+
 add_library(CrossTuLib SHARED test/cross_tu_lib.cpp)
 
 target_compile_options(CrossTuLib PRIVATE -fvisibility=hidden)

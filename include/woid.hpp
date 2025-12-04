@@ -284,7 +284,7 @@ template <auto mmStaticMaker,
     }
 
     template <typename T, typename... Args>
-    explicit Woid(std::in_place_type_t<T>, Args... args) {
+    explicit Woid(std::in_place_type_t<T>, Args&&... args) {
         if constexpr (kIsBig<T>) {
             this->mm = &dynamicMM<T>;
             auto* obj = Alloc::template make<T>(std::forward<Args>(args)...);
@@ -934,11 +934,20 @@ struct Interface : detail::HasOrIsVTable<Interface<O, Storage_, Ms...>, O, Stora
 
     template <typename T>
     Interface(T&& t)
+        requires(!std::is_same_v<std::remove_cvref_t<T>, Interface>)
           : detail::HasOrIsVTable<Interface<O, Storage, Ms...>,
                                   O,
                                   Storage,
                                   Ms...>{detail::TypeTag<Storage>{}, detail::TypeTag<T>{}},
             storage{std::forward<T>(t)} {}
+
+    template <typename T, typename... Args>
+    Interface(std::in_place_type_t<T> tag, Args&&... args)
+          : detail::HasOrIsVTable<Interface<O, Storage, Ms...>,
+                                  O,
+                                  Storage,
+                                  Ms...>{detail::TypeTag<Storage>{}, detail::TypeTag<T>{}},
+            storage{tag, std::forward<Args>(args)...} {}
 
   private:
     template <typename Self>
@@ -957,6 +966,9 @@ template <VTableOwnership O = VTableOwnership::DEDICATED,
 struct InterfaceBuilderImpl {
     template <VTableOwnership NewO>
     using With = InterfaceBuilderImpl<NewO, Storage_, Ms...>;
+
+    using WithSharedVTable = InterfaceBuilderImpl<VTableOwnership::SHARED, Storage_, Ms...>;
+    using WithDedicatedVTable = InterfaceBuilderImpl<VTableOwnership::DEDICATED, Storage_, Ms...>;
 
     template <typename S>
     using WithStorage = InterfaceBuilderImpl<O, S, Ms...>;
