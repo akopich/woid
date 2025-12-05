@@ -161,7 +161,7 @@ static void bench(benchmark::State& state) {
             kPopulate<VecElem>(shapes, randomIt);
         }
 
-        Algo(shapes, kComparator<VecElem>);
+        benchmark::DoNotOptimize(Algo(shapes, kComparator<VecElem>));
     }
 }
 
