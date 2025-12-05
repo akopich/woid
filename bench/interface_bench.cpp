@@ -84,7 +84,7 @@ static_assert(alignof(Rectangle) == alignof(void*));
 
 // clang-format off
 using Builder = woid::InterfaceBuilder
-           ::WithStorage<woid::Any<sizeof(Rectangle)>>
+           ::WithStorage<woid::Any<sizeof(Rectangle), woid::Copy::DISABLED>>
            ::Method<"area", double()const, []<typename T> {return &T::area; } >
            ::Method<"perimieter", double()const, []<typename T> {return &T::perimeter; } >
            ::Method<"draw", void()const, []<typename T> {return &T::draw; } > ;
@@ -129,18 +129,31 @@ template <typename T>
 constexpr static auto kComparator<std::unique_ptr<T>> =
     [](const std::unique_ptr<T>& i, const std::unique_ptr<T>& j) { return i->area() < j->area(); };
 
+void doN(size_t N, auto foo) {
+    for (size_t i = 0; i < N; i++)
+        foo();
+}
+
 template <typename I>
-static auto constexpr kPopulate = [](auto& v, auto it) {
-    v.emplace_back(std::in_place_type<Circle>, *it++);
-    v.emplace_back(std::in_place_type<Square>, *it++);
-    v.emplace_back(std::in_place_type<Rectangle>, *it++, *it++);
+static auto constexpr kPopulate = [](auto& v, auto it, size_t N) {
+    doN(N, [&] { v.emplace_back(std::in_place_type<Circle>, *it++); });
+    doN(N, [&] { v.emplace_back(std::in_place_type<Square>, *it++); });
+    doN(N, [&] { v.emplace_back(std::in_place_type<Rectangle>, *it++, *it++); });
 };
 
-template <typename T>
-auto constexpr kPopulate<std::unique_ptr<T>> = [](auto& v, auto it) {
-    v.emplace_back(new VCircle{*it++});
-    v.emplace_back(new VSquare{*it++});
-    v.emplace_back(new VRectangle{*it++, *it++});
+template <>
+auto constexpr kPopulate<std::unique_ptr<VShape>> = [](auto& v, auto it, size_t N) {
+    doN(N, [&] { v.emplace_back(new VCircle{*it++}); });
+    doN(N, [&] { v.emplace_back(new VSquare{*it++}); });
+    doN(N, [&] { v.emplace_back(new VRectangle{*it++, *it++}); });
+};
+
+template <typename I>
+auto constexpr kPopulate<std::unique_ptr<I>> = [](auto& v, auto it, size_t N) {
+    doN(N, [&] { v.emplace_back(new I{std::in_place_type<VCircle>, *it++}); });
+
+    doN(N, [&] { v.emplace_back(new I{std::in_place_type<VSquare>, *it++}); });
+    doN(N, [&] { v.emplace_back(new I{std::in_place_type<VRectangle>, *it++, *it++}); });
 };
 
 template <typename VecElem, auto Algo>
@@ -149,17 +162,15 @@ static void bench(benchmark::State& state) {
     size_t totalShapes = 3 * N;
 
     auto randomDims = makeRandomDoubles(N * 5);
-
+    std::vector<VecElem> shapes;
+    shapes.reserve(totalShapes);
     benchmark::ClobberMemory();
 
     for (auto _ : state) {
-        std::vector<VecElem> shapes;
-        shapes.reserve(totalShapes);
         auto randomIt = randomDims.begin();
+        shapes.clear();
 
-        for (size_t i = 0; i < N; ++i) {
-            kPopulate<VecElem>(shapes, randomIt);
-        }
+        kPopulate<VecElem>(shapes, randomIt, N);
 
         benchmark::DoNotOptimize(Algo(shapes, kComparator<VecElem>));
     }
@@ -174,13 +185,6 @@ template <>
 void instantiateAndMinShapes<VShape>(benchmark::State& state) {
     bench<std::unique_ptr<VShape>, std::ranges::min_element>(state);
 }
-
-template <typename I>
-static auto constexpr populateWithInterfacePtrs = [](auto& v, auto it) {
-    v.push_back(new I{std::in_place_type<VCircle>, *it++});
-    v.push_back(new I{std::in_place_type<VSquare>, *it++});
-    v.push_back(new I{std::in_place_type<VRectangle>, *it++, *it++});
-};
 
 template <typename I>
 static void instantiateAndSortShapes(benchmark::State& state) {
@@ -204,6 +208,8 @@ BENCHMARK(instantiateAndMinShapes<WoidShapeSharedDynamic>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<VShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeDedicated>)->Apply(setRange);
+BENCHMARK(instantiateAndSortShapes<std::unique_ptr<WoidShapeShared>>)->Apply(setRange);
+BENCHMARK(instantiateAndSortShapes<std::unique_ptr<WoidShapeDedicated>>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeSharedDynamic>)->Apply(setRange);
 
 BENCHMARK_MAIN();
