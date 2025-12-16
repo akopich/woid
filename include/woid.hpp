@@ -679,51 +679,50 @@ using FindBestT = FindBest<Name, IsConst, ArgList, Ms...>::type;
 template <typename T, bool IsConst>
 using ConditionalRef = std::conditional_t<IsConst, const T&, T&>;
 
-template <FixedString Name_, auto MethodLam, bool IsConst_, typename R, typename... Args_>
+template <FixedString Name_,
+          auto MethodLam,
+          bool IsConst_,
+          typename S,
+          typename R,
+          typename... Args_>
 class MethodImpl {
   protected:
-    template <typename S>
     using Ptr = R (*)(detail::ConditionalRef<S, IsConst_>, Args_...);
 
-    using ProbePtr = Ptr<int>;
-    alignas(ProbePtr) std::array<char, sizeof(ProbePtr)> funPtr;
+    Ptr funPtr;
 
   public:
+    template <typename S_>
+    using WithStorage = MethodImpl<Name_, MethodLam, IsConst_, S_, R, Args_...>;
+
     constexpr static inline auto Name = Name_;
     constexpr static inline auto IsConst = IsConst_;
     using Args = Typelist<Args_...>;
 
-    template <typename S, typename T>
-    MethodImpl(detail::TypeTag<S>, detail::TypeTag<T>) : funPtr{} {
-        auto ptr = +[](detail::ConditionalRef<S, IsConst_> s, Args_... args) -> R {
-            static constexpr auto m = MethodLam.template operator()<T>();
-            return std::invoke(m,
-                               &detail::any_cast<detail::ConditionalRef<T, IsConst_>>(s),
-                               std::forward<Args_>(args)...);
-        };
-        std::memcpy(funPtr.data(), &ptr, funPtr.size());
-    }
+    template <typename T>
+    MethodImpl(detail::TypeTag<T>)
+          : funPtr{+[](detail::ConditionalRef<S, IsConst_> s, Args_... args) -> R {
+                static constexpr auto m = MethodLam.template operator()<T>();
+                return std::invoke(m,
+                                   &detail::any_cast<detail::ConditionalRef<T, IsConst_>>(s),
+                                   std::forward<Args_>(args)...);
+            }} {}
 
-    template <typename S>
     decltype(auto) invoke(S& s, Args_&&... args)
         requires(!IsConst_) {
-        return std::invoke(
-            *reinterpret_cast<Ptr<S>*>(funPtr.data()), s, std::forward<Args_&&>(args)...);
+        return std::invoke(funPtr, s, std::forward<Args_&&>(args)...);
     }
 
-    template <typename S>
-    decltype(auto) invoke(S& s, Args_&&... args) const
+    decltype(auto) invoke(const S& s, Args_&&... args) const
         requires(IsConst_) {
-        return std::invoke(
-            *reinterpret_cast<const Ptr<S>*>(funPtr.data()), s, std::forward<Args_&&>(args)...);
+        return std::invoke(funPtr, s, std::forward<Args_&&>(args)...);
     }
 };
 
 template <typename Storage, typename... Ms>
 struct VTable : Ms... {
     template <typename T>
-    VTable(TypeTag<Storage>, TypeTag<T>)
-          : Ms{detail::TypeTag<Storage>{}, detail::TypeTag<std::remove_cvref_t<T>>{}}... {}
+    VTable(TypeTag<T>) : Ms{detail::TypeTag<std::remove_cvref_t<T>>{}}... {}
 
     template <FixedString Name, typename... Args, typename Self>
     constexpr auto* getMethod(this Self&& self) {
@@ -739,13 +738,13 @@ struct HasVTable {
     using Table = VTable<Storage, Ms...>;
 
     template <typename T>
-    static inline auto vTableStatic = Table{TypeTag<Storage>{}, TypeTag<T>{}};
+    static inline auto vTableStatic = Table{TypeTag<T>{}};
 
     Table* vTable;
 
   public:
     template <typename T>
-    HasVTable(TypeTag<Storage>, TypeTag<T>) {
+    HasVTable(TypeTag<T>) {
         vTable = &vTableStatic<T>;
     }
 
@@ -900,21 +899,21 @@ struct Free<R (T::*)(Args...)> {
     using Type = R(Args...);
 };
 
-template <detail::FixedString Name_, typename M, auto MethodLam>
+template <detail::FixedString Name_, typename S, typename M, auto MethodLam>
 class Method;
 
-template <typename R, typename... Args, detail::FixedString Name_, auto MethodLam>
-class Method<Name_, R(Args...), MethodLam>
-      : public detail::MethodImpl<Name_, MethodLam, false, R, Args...> {
+template <typename S, typename R, typename... Args, detail::FixedString Name_, auto MethodLam>
+class Method<Name_, S, R(Args...), MethodLam>
+      : public detail::MethodImpl<Name_, MethodLam, false, S, R, Args...> {
   public:
-    using detail::MethodImpl<Name_, MethodLam, false, R, Args...>::MethodImpl;
+    using detail::MethodImpl<Name_, MethodLam, false, S, R, Args...>::MethodImpl;
 };
 
-template <typename R, typename... Args, detail::FixedString Name_, auto MethodLam>
-class Method<Name_, R(Args...) const, MethodLam>
-      : public detail::MethodImpl<Name_, MethodLam, true, R, Args...> {
+template <typename S, typename R, typename... Args, detail::FixedString Name_, auto MethodLam>
+class Method<Name_, S, R(Args...) const, MethodLam>
+      : public detail::MethodImpl<Name_, MethodLam, true, S, R, Args...> {
   public:
-    using detail::MethodImpl<Name_, MethodLam, true, R, Args...>::MethodImpl;
+    using detail::MethodImpl<Name_, MethodLam, true, S, R, Args...>::MethodImpl;
 };
 
 template <VTableOwnership O, typename Storage_, typename... Ms>
@@ -935,18 +934,14 @@ struct Interface : detail::HasOrIsVTable<Interface<O, Storage_, Ms...>, O, Stora
     template <typename T>
     Interface(T&& t)
         requires(!std::is_same_v<std::remove_cvref_t<T>, Interface>)
-          : detail::HasOrIsVTable<Interface<O, Storage, Ms...>,
-                                  O,
-                                  Storage,
-                                  Ms...>{detail::TypeTag<Storage>{}, detail::TypeTag<T>{}},
+          : detail::HasOrIsVTable<Interface<O, Storage, Ms...>, O, Storage, Ms...>{detail::TypeTag<
+                T>{}},
             storage{std::forward<T>(t)} {}
 
     template <typename T, typename... Args>
     Interface(std::in_place_type_t<T> tag, Args&&... args)
-          : detail::HasOrIsVTable<Interface<O, Storage, Ms...>,
-                                  O,
-                                  Storage,
-                                  Ms...>{detail::TypeTag<Storage>{}, detail::TypeTag<T>{}},
+          : detail::HasOrIsVTable<Interface<O, Storage, Ms...>, O, Storage, Ms...>{detail::TypeTag<
+                T>{}},
             storage{tag, std::forward<Args>(args)...} {}
 
   private:
@@ -958,6 +953,9 @@ struct Interface : detail::HasOrIsVTable<Interface<O, Storage_, Ms...>, O, Stora
             return self.getVTable();
     };
 };
+
+template <typename... T>
+struct Test;
 
 namespace detail {
 template <VTableOwnership O = VTableOwnership::DEDICATED,
@@ -971,10 +969,11 @@ struct InterfaceBuilderImpl {
     using WithDedicatedVTable = InterfaceBuilderImpl<VTableOwnership::DEDICATED, Storage_, Ms...>;
 
     template <typename S>
-    using WithStorage = InterfaceBuilderImpl<O, S, Ms...>;
+    using WithStorage = InterfaceBuilderImpl<O, S, typename Ms::template WithStorage<S>...>;
 
     template <detail::FixedString Name, typename M, auto MethodLam>
-    using Method = InterfaceBuilderImpl<O, Storage_, Ms..., woid::Method<Name, M, MethodLam>>;
+    using Method
+        = InterfaceBuilderImpl<O, Storage_, Ms..., woid::Method<Name, Storage_, M, MethodLam>>;
 
     using Build = Interface<O, Storage_, Ms...>;
 };
