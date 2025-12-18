@@ -660,8 +660,20 @@ struct OverloadImpl<M, NameT, IsConstT, Typelist<Args...>> {
 template <auto V>
 struct ValueTag {};
 
+template <bool IsConst>
+struct ConstTag;
+
+template <>
+struct ConstTag<false> {};
+
+template <>
+struct ConstTag<true> {
+    ConstTag(ConstTag<false>) {}
+    ConstTag() {}
+};
+
 template <typename M>
-struct Overload : OverloadImpl<M, ValueTag<M::Name>, ValueTag<M::IsConst>, typename M::Args> {};
+struct Overload : OverloadImpl<M, ValueTag<M::Name>, ConstTag<M::IsConst>, typename M::Args> {};
 
 template <FixedString Name, bool IsConst, typename ArgList, typename... Ms>
 struct FindBest;
@@ -670,7 +682,7 @@ template <FixedString Name, bool IsConst, typename... Args, typename... Ms>
 struct FindBest<Name, IsConst, Typelist<Args...>, Ms...> : Overload<Ms>... {
     using Overload<Ms>::probe...;
 
-    using type = decltype(probe(ValueTag<Name>{}, ValueTag<IsConst>{}, std::declval<Args>()...));
+    using type = decltype(probe(ValueTag<Name>{}, ConstTag<IsConst>{}, std::declval<Args>()...));
 };
 
 template <FixedString Name, bool IsConst, typename ArgList, typename... Ms>
