@@ -67,6 +67,21 @@ namespace detail {
 template <typename... Ts>
 struct Typelist;
 
+template <typename TL>
+struct HeadTail;
+
+template <typename Head_, typename... Tail_>
+struct HeadTail<Typelist<Head_, Tail_...>> {
+    using Head = Head_;
+    using Tail = Typelist<Tail_...>;
+};
+
+template <typename TL>
+using Head = HeadTail<TL>::Head;
+
+template <typename TL>
+using Tail = HeadTail<TL>::Tail;
+
 template <typename T>
 class TypeTag {
     using Type = T;
@@ -883,6 +898,45 @@ struct AnyBuilderImpl {
 
     using Build = Any<Size, kCopy, Eg, Alignment, kFunPtr, kSafeAnyCast, Alloc>;
 };
+
+template <typename T>
+struct Free;
+
+template <typename R, typename ArgsTL>
+struct MkFunType;
+
+template <typename R, typename... Args>
+struct MkFunType<R, Typelist<Args...>> {
+    using Type = R(Args...);
+    using ConstType = R(Args...) const;
+};
+
+template <typename T>
+struct Test;
+
+template <typename T, typename R_, typename... Args_>
+struct Free<R_ (T::*)(Args_...) const> {
+    using Type = R_(Args_...);
+    using Args = Typelist<Args_...>;
+    using StorageArg = Head<Args>;
+    using MethodArgs = Tail<Args>;
+    using R = R_;
+    static inline constexpr bool kIsStorageConst
+        = std::is_const_v<std::remove_reference_t<StorageArg>>;
+    using MethodTypeMaker = MkFunType<R, MethodArgs>;
+    using MethodType = std::conditional_t<kIsStorageConst,
+                                          typename MethodTypeMaker::ConstType,
+                                          typename MethodTypeMaker::Type>;
+};
+
+template <auto L>
+struct MethodType {
+    using SomeArbitraryCompleteType = int;
+    using Ptr = decltype(&decltype(L)::template operator()<SomeArbitraryCompleteType>);
+    using Type = Free<Ptr>::MethodType;
+    static inline constexpr bool IsConst = Free<Ptr>::kIsStorageConst;
+};
+
 } // namespace detail
 
 using AnyBuilder = detail::AnyBuilderImpl<>;
@@ -901,14 +955,6 @@ template <typename... Fs>
     explicit FunRef(T*... t) : detail::MonoFunRef<Fs>{t}... {}
 
     using detail::MonoFunRef<Fs>::operator()...;
-};
-
-template <typename T>
-struct Free;
-
-template <typename T, typename R, typename... Args>
-struct Free<R (T::*)(Args...)> {
-    using Type = R(Args...);
 };
 
 template <detail::FixedString Name_, typename S, typename M, auto MethodLam>
@@ -986,6 +1032,14 @@ struct InterfaceBuilderImpl {
     template <detail::FixedString Name, typename M, auto MethodLam>
     using Method
         = InterfaceBuilderImpl<O, Storage_, Ms..., woid::Method<Name, Storage_, M, MethodLam>>;
+
+    template <detail::FixedString Name, auto L>
+    using Fun = Method<Name, typename detail::MethodType<L>::Type, []<typename T> {
+        using ObjPtr = std::conditional_t<detail::MethodType<L>::IsConst, const T*, T*>;
+        return [](ObjPtr obj, auto&&... args) {
+            return std::invoke(L, *obj, std::forward<decltype(args)>(args)...);
+        };
+    }>;
 
     using Build = Interface<O, Storage_, Ms...>;
 };

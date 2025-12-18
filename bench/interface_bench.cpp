@@ -85,7 +85,7 @@ static_assert(alignof(Rectangle) == alignof(void*));
 // clang-format off
 using Builder = woid::InterfaceBuilder
            ::WithStorage<woid::Any<sizeof(Rectangle), woid::Copy::DISABLED>>
-           ::Method<"area", double()const, []<typename T> {return &T::area; } >
+           ::Fun<"area", [](const auto& obj) -> double { return obj.area(); } >
            ::Method<"perimieter", double()const, []<typename T> {return &T::perimeter; } >
            ::Method<"draw", void()const, []<typename T> {return &T::draw; } > ;
 // clang-format on

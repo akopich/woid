@@ -164,10 +164,21 @@ struct GI
       : InterfaceBuilder
             ::With<O>
             ::template Method<"addAll", int(int, const int, const int&, int&, int&&), []<typename T> { return &T::addAll; }>
+            ::template Fun<"addAllFun", [](auto& obj, int i, const int j, const int& k, int& l, int&& m) -> int {
+                return obj.addAll(i, j, k, l, std::move(m));
+            }>
             ::template Method<"isInt", bool(int), []<typename T> { return static_cast<bool (T::*)(int)>(&T::isInt); }>
             ::template Method<"isInt", bool(float), []<typename T> { return static_cast<bool (T::*)(float)>(&T::isInt); }>
             ::template Method<"get", int(void), []<typename T> { return static_cast<int (T::*)()>(&T::get); }>
             ::template Method<"get", int(void) const, []<typename T> { return static_cast<int (T::*)() const>(&T::get); }>
+            ::template Fun<"getFun", [](auto& obj) -> int { return obj.get(); } >
+            ::template Fun<"getFun", [](const auto& obj) -> int { return obj.get(); } >
+            ::template Fun<"isIntFun", [](auto& obj, int i) -> bool {
+               return obj.isInt(i);
+            } >
+            ::template Fun<"isIntFun", [](auto& obj, float f) -> bool {
+               return obj.isInt(f);
+            }>
             ::Build {};
 // clang-format on
 
@@ -175,9 +186,11 @@ TYPED_TEST(VTableParameterizedTest, constOverload) {
     static constexpr auto O = TypeParam::value;
     GI<O> g{G{}};
     ASSERT_EQ(g.template call<"get">(), 5);
+    ASSERT_EQ(g.template call<"getFun">(), 5);
 
     const GI cg = g;
     ASSERT_EQ(cg.template call<"get">(), 45);
+    ASSERT_EQ(cg.template call<"getFun">(), 45);
 }
 
 TYPED_TEST(VTableParameterizedTest, argTypeOverload) {
@@ -185,6 +198,8 @@ TYPED_TEST(VTableParameterizedTest, argTypeOverload) {
     GI<O> g{G{}};
     ASSERT_TRUE(g.template call<"isInt">(int{0}));
     ASSERT_FALSE(g.template call<"isInt">(float{0}));
+    ASSERT_TRUE(g.template call<"isIntFun">(int{0}));
+    ASSERT_FALSE(g.template call<"isIntFun">(float{0}));
 }
 
 TYPED_TEST(VTableParameterizedTest, propagatesConstRef) {
@@ -194,4 +209,5 @@ TYPED_TEST(VTableParameterizedTest, propagatesConstRef) {
     int i = 4;
     int j = 5;
     ASSERT_EQ(g.template call<"addAll">(1, 2, 3, i, std::move(j)), 15);
+    ASSERT_EQ(g.template call<"addAllFun">(1, 2, 3, i, std::move(j)), 15);
 }
