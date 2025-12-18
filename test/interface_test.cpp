@@ -28,15 +28,23 @@ struct CC {
 };
 
 // clang-format off
-template <VTableOwnership O, typename S>
-struct IncAndTwice
-      : InterfaceBuilder
-            ::With<O>
-            ::template WithStorage<S>
+using InterfaceViaMethods = InterfaceBuilder
             ::template Method<"set", void(int), []<typename T> { return &T::set; }>
             ::template Method<"get", size_t(void) const, []<typename T> { return &T::get; }>
             ::template Method<"inc", void(void), []<typename T> { return &T::inc; }>
-            ::template Method<"twice", void(void), []<typename T> { return &T::twice; }>
+            ::template Method<"twice", void(void), []<typename T> { return &T::twice; }>;
+
+using InterfaceViaFuns = InterfaceBuilder
+            ::template Fun<"set",   [](auto& obj, int i) -> void { obj.set(i); }>
+            ::template Fun<"get",   [](const auto& obj) -> size_t { return obj.get(); }>
+            ::template Fun<"inc",   [](auto& obj) -> void { obj.inc(); }>
+            ::template Fun<"twice", [](auto& obj) -> void { obj.twice();  }>;
+
+template <typename Interface, VTableOwnership O, typename S>
+struct IncAndTwice
+      : Interface
+            ::template With<O>
+            ::template WithStorage<S>
             ::Build {
     void set(size_t i) { this->template call<"set">(i); }
     size_t get() const { return this->template call<"get">(); }
@@ -45,15 +53,22 @@ struct IncAndTwice
 };
 // clang-format on
 
-using TestCases
-    = testing::Types<IncAndTwice<VTableOwnership::DEDICATED, woid::Any<8, Copy::ENABLED>>,
-                     IncAndTwice<VTableOwnership::DEDICATED, woid::Any<8, Copy::DISABLED>>,
-                     IncAndTwice<VTableOwnership::SHARED, woid::Any<8, Copy::ENABLED>>,
-                     IncAndTwice<VTableOwnership::SHARED, woid::Any<8, Copy::DISABLED>>,
-                     IncAndTwice<VTableOwnership::SHARED, detail::DynamicStorage<>>,
-                     IncAndTwice<VTableOwnership::DEDICATED, detail::DynamicStorage<>>
+constexpr auto Storages = hana::
+    tuple_t<woid::Any<8, Copy::ENABLED>, woid::Any<8, Copy::DISABLED>, detail::DynamicStorage<>>;
+constexpr auto VTableOwnerships
+    = hana::tuple_c<VTableOwnership, VTableOwnership::DEDICATED, VTableOwnership::SHARED>;
+constexpr auto Interfaces = hana::tuple_t<InterfaceViaFuns, InterfaceViaMethods>;
 
-                     >;
+constexpr auto TestCases = hana::transform(
+    hana::cartesian_product(hana::make_tuple(Interfaces, VTableOwnerships, Storages)),
+    hana::fuse([](auto i, auto v, auto s) {
+        return hana::type_c<IncAndTwice<typename decltype(i)::type,
+                                        decltype(v)::value,
+                                        typename decltype(s)::type>>;
+    }));
+
+template <auto HanaTuple>
+using AsTuple = decltype(hana::unpack(HanaTuple, hana::template_<testing::Types>))::type;
 
 template <typename T>
 struct InterfaceTest : testing::Test {
@@ -63,7 +78,7 @@ struct InterfaceTest : testing::Test {
     }
 };
 
-TYPED_TEST_SUITE(InterfaceTest, TestCases);
+TYPED_TEST_SUITE(InterfaceTest, AsTuple<TestCases>);
 
 TYPED_TEST(InterfaceTest, canCallMethods) {
     using I = TypeParam;
@@ -98,8 +113,6 @@ TYPED_TEST(InterfaceTest, andPutThemAllInVector) {
 
 constexpr auto VTableOwnderships
     = hana::tuple_c<VTableOwnership, VTableOwnership::SHARED, VTableOwnership::DEDICATED>;
-template <auto HanaTuple>
-using AsTuple = decltype(hana::unpack(HanaTuple, hana::template_<testing::Types>))::type;
 
 template <typename T>
 struct VTableParameterizedTest : testing::Test {
@@ -116,7 +129,7 @@ TYPED_TEST(VTableParameterizedTest, worksWithRefToo) {
     C c{};
     CC cc{};
 
-    std::vector<IncAndTwice<O, Ref>> v;
+    std::vector<IncAndTwice<InterfaceViaFuns, O, Ref>> v;
 
     v.emplace_back(c);
     v.emplace_back(cc);
@@ -175,7 +188,7 @@ struct GI
             ::template Fun<"getFun", [](const auto& obj) -> int { return obj.get(); } >
             ::template Fun<"isIntFun", [](auto& obj, int i) -> bool {
                return obj.isInt(i);
-            } >
+            }>
             ::template Fun<"isIntFun", [](auto& obj, float f) -> bool {
                return obj.isInt(f);
             }>

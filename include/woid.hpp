@@ -911,9 +911,6 @@ struct MkFunType<R, Typelist<Args...>> {
     using ConstType = R(Args...) const;
 };
 
-template <typename T>
-struct Test;
-
 template <typename T, typename R_, typename... Args_>
 struct Free<R_ (T::*)(Args_...) const> {
     using Type = R_(Args_...);
