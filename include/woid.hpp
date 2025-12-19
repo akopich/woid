@@ -411,57 +411,6 @@ struct Deleter {
     DeletePtr deletePtr;
 };
 
-template <typename Alloc_ = DefaultAllocator>
-class DynamicStorage {
-  private:
-    std::unique_ptr<void, Deleter<Alloc_>> storage;
-
-  public:
-    inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
-    inline static constexpr auto kStaticStorageSize = 0;
-    inline static constexpr auto kStaticStorageAlignment = 0;
-    inline static constexpr auto kSafeAnyCast = SafeAnyCast::DISABLED;
-    using Alloc = Alloc_;
-
-    constexpr DynamicStorage() : storage(nullptr) {}
-
-    DynamicStorage(const DynamicStorage&) = delete;
-    DynamicStorage& operator=(const DynamicStorage&) = delete;
-
-    template <typename T, typename TnoRef = std::remove_cvref_t<T>>
-    DynamicStorage(T&& t)
-          : storage{Alloc::template make<TnoRef>(std::forward<T>(t)),
-                    Deleter<Alloc_>{kTypeTag<TnoRef>}} {}
-
-    template <typename T>
-    DynamicStorage(TransferOwnership, T* t)
-          : storage{t, Deleter<Alloc_>{kTypeTag<std::remove_cvref_t<T>>}} {}
-
-    DynamicStorage& operator=(DynamicStorage&& t) noexcept {
-        storage = std::move(t.storage);
-        return *this;
-    }
-
-    DynamicStorage(DynamicStorage&& t) : storage(std::move(t.storage)) {}
-
-    template <typename T, typename... Args>
-    DynamicStorage(std::in_place_type_t<T>, Args&&... args)
-          : storage{Alloc::template make<T>(std::forward<Args>(args)...),
-                    Deleter<Alloc_>{kTypeTag<T>}} {}
-
-    ~DynamicStorage() = default;
-
-    template <typename T, typename Self>
-    T get(this Self&& self) {
-        return star<T, Self>(std::forward<Self>(self).storage.get());
-    }
-};
-
-template <typename T, typename Storage>
-decltype(auto) any_cast(Storage&& s) {
-    return std::forward<Storage>(s).template get<T>();
-}
-
 template <Copy C, FunPtr F>
 struct MemManagerSelector;
 
@@ -731,7 +680,7 @@ class MethodImpl {
           : funPtr{+[](detail::ConditionalRef<S, IsConst_> s, Args_... args) -> R {
                 static constexpr auto m = MethodLam.template operator()<T>();
                 return std::invoke(m,
-                                   &detail::any_cast<detail::ConditionalRef<T, IsConst_>>(s),
+                                   &any_cast<detail::ConditionalRef<T, IsConst_>>(s),
                                    std::forward<Args_>(args)...);
             }} {}
 
@@ -787,6 +736,57 @@ using HasOrIsVTable = std::conditional_t<O == VTableOwnership::SHARED,
                                          VTable<Storage, Ms...>>;
 
 } // namespace detail
+
+template <typename T, typename Storage>
+decltype(auto) any_cast(Storage&& s) {
+    return std::forward<Storage>(s).template get<T>();
+}
+
+template <typename Alloc_ = DefaultAllocator>
+class DynamicStorage {
+  private:
+    std::unique_ptr<void, detail::Deleter<Alloc_>> storage;
+
+  public:
+    inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
+    inline static constexpr auto kStaticStorageSize = 0;
+    inline static constexpr auto kStaticStorageAlignment = 0;
+    inline static constexpr auto kSafeAnyCast = SafeAnyCast::DISABLED;
+    using Alloc = Alloc_;
+
+    constexpr DynamicStorage() : storage(nullptr) {}
+
+    DynamicStorage(const DynamicStorage&) = delete;
+    DynamicStorage& operator=(const DynamicStorage&) = delete;
+
+    template <typename T, typename TnoRef = std::remove_cvref_t<T>>
+    DynamicStorage(T&& t)
+          : storage{Alloc::template make<TnoRef>(std::forward<T>(t)),
+                    detail::Deleter<Alloc_>{detail::kTypeTag<TnoRef>}} {}
+
+    template <typename T>
+    DynamicStorage(TransferOwnership, T* t)
+          : storage{t, detail::Deleter<Alloc_>{detail::kTypeTag<std::remove_cvref_t<T>>}} {}
+
+    DynamicStorage& operator=(DynamicStorage&& t) noexcept {
+        storage = std::move(t.storage);
+        return *this;
+    }
+
+    DynamicStorage(DynamicStorage&& t) : storage(std::move(t.storage)) {}
+
+    template <typename T, typename... Args>
+    DynamicStorage(std::in_place_type_t<T>, Args&&... args)
+          : storage{Alloc::template make<T>(std::forward<Args>(args)...),
+                    detail::Deleter<Alloc_>{detail::kTypeTag<T>}} {}
+
+    ~DynamicStorage() = default;
+
+    template <typename T, typename Self>
+    T get(this Self&& self) {
+        return detail::star<T, Self>(std::forward<Self>(self).storage.get());
+    }
+};
 
 struct Ref : detail::RefImpl<false> {
     using detail::RefImpl<false>::RefImpl;
@@ -1008,9 +1008,6 @@ struct Interface : detail::HasOrIsVTable<Interface<O, Storage_, Ms...>, O, Stora
             return self.getVTable();
     };
 };
-
-template <typename... T>
-struct Test;
 
 namespace detail {
 template <VTableOwnership O = VTableOwnership::DEDICATED,

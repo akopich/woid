@@ -53,8 +53,8 @@ struct IncAndTwice
 };
 // clang-format on
 
-constexpr auto Storages = hana::
-    tuple_t<woid::Any<8, Copy::ENABLED>, woid::Any<8, Copy::DISABLED>, detail::DynamicStorage<>>;
+constexpr auto Storages
+    = hana::tuple_t<woid::Any<8, Copy::ENABLED>, woid::Any<8, Copy::DISABLED>, DynamicStorage<>>;
 constexpr auto VTableOwnerships
     = hana::tuple_c<VTableOwnership, VTableOwnership::DEDICATED, VTableOwnership::SHARED>;
 constexpr auto Interfaces = hana::tuple_t<InterfaceViaFuns, InterfaceViaMethods>;

@@ -104,8 +104,7 @@ struct WoidShapeDedicated : DedicatedBase {
     double area() const { return call<"area">(); }
 };
 
-using DedicatedShardBase
-    = Builder::WithSharedVTable::WithStorage<woid::detail::DynamicStorage<>>::Build;
+using DedicatedShardBase = Builder::WithSharedVTable::WithStorage<woid::DynamicStorage<>>::Build;
 
 struct WoidShapeSharedDynamic : DedicatedShardBase {
     using DedicatedShardBase::DedicatedShardBase;

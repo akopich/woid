@@ -97,9 +97,9 @@ static constexpr auto make_instantiations() {
                            mkAny);
 };
 
-constexpr auto MoveOnlyStorageTypes = hana::concat(
-    make_instantiations<Copy::DISABLED>(),
-    hana::tuple_t<detail::DynamicStorage<>, detail::DynamicStorage<AlternativeAllocator>>);
+constexpr auto MoveOnlyStorageTypes
+    = hana::concat(make_instantiations<Copy::DISABLED>(),
+                   hana::tuple_t<DynamicStorage<>, DynamicStorage<AlternativeAllocator>>);
 constexpr auto CopyStorageTypes = make_instantiations<Copy::ENABLED>();
 
 static_assert(alignof(__int128) > alignof(void*));     // make sure int128 has big alignment
