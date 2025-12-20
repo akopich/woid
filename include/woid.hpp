@@ -708,7 +708,7 @@ struct VTable : Ms... {
     }
 };
 
-template <typename I, typename Storage, typename... Ms>
+template <typename Storage, typename... Ms>
 struct HasVTable {
   private:
     using Table = VTable<Storage, Ms...>;
@@ -724,16 +724,16 @@ struct HasVTable {
         vTable = &vTableStatic<T>;
     }
 
-    template <typename Self>
-    RetainConstPtr<Self, Table> getVTable(this Self&& self) {
-        return self.vTable;
+    template <FixedString Name, typename... Args, typename Self>
+    constexpr auto* getMethod(this Self&& self) {
+        return static_cast<RetainConstPtr<Self, Table>>(self.vTable)
+            ->template getMethod<Name, Args...>();
     }
 };
 
-template <typename I, VTableOwnership O, typename Storage, typename... Ms>
-using HasOrIsVTable = std::conditional_t<O == VTableOwnership::SHARED,
-                                         HasVTable<I, Storage, Ms...>,
-                                         VTable<Storage, Ms...>>;
+template <VTableOwnership O, typename Storage, typename... Ms>
+using HasOrIsVTable = std::
+    conditional_t<O == VTableOwnership::SHARED, HasVTable<Storage, Ms...>, VTable<Storage, Ms...>>;
 
 } // namespace detail
 
@@ -972,8 +972,9 @@ class Method<Name_, S, R(Args...) const, MethodLam>
 };
 
 template <VTableOwnership O, typename Storage_, typename... Ms>
-struct Interface : detail::HasOrIsVTable<Interface<O, Storage_, Ms...>, O, Storage_, Ms...> {
+struct Interface {
   private:
+    detail::HasOrIsVTable<O, Storage_, Ms...> vtable;
     Storage_ storage;
 
   public:
@@ -982,31 +983,18 @@ struct Interface : detail::HasOrIsVTable<Interface<O, Storage_, Ms...>, O, Stora
 
     template <detail::FixedString Name, typename... Args, typename Self>
     constexpr inline decltype(auto) call(this Self&& self, Args&&... args) {
-        return self.vtable()->template getMethod<Name, Args&&...>()->invoke(
+        return self.vtable.template getMethod<Name, Args&&...>()->invoke(
             self.storage, std::forward<Args&&>(args)...);
     }
 
     template <typename T>
     Interface(T&& t)
         requires(!std::is_same_v<std::remove_cvref_t<T>, Interface>)
-          : detail::HasOrIsVTable<Interface<O, Storage, Ms...>, O, Storage, Ms...>{detail::TypeTag<
-                T>{}},
-            storage{std::forward<T>(t)} {}
+          : vtable{detail::TypeTag<T>{}}, storage{std::forward<T>(t)} {}
 
     template <typename T, typename... Args>
     Interface(std::in_place_type_t<T> tag, Args&&... args)
-          : detail::HasOrIsVTable<Interface<O, Storage, Ms...>, O, Storage, Ms...>{detail::TypeTag<
-                T>{}},
-            storage{tag, std::forward<Args>(args)...} {}
-
-  private:
-    template <typename Self>
-    auto vtable(this Self&& self) {
-        if constexpr (O == VTableOwnership::DEDICATED)
-            return &self;
-        else
-            return self.getVTable();
-    };
+          : vtable{detail::TypeTag<T>{}}, storage{tag, std::forward<Args>(args)...} {}
 };
 
 namespace detail {
