@@ -3,6 +3,7 @@
 #include <benchmark/benchmark.h>
 #include <boost/te.hpp>
 #include <print>
+#include <proxy/proxy.h>
 #include <random>
 
 using namespace woid;
@@ -51,10 +52,16 @@ struct VCircle : VShape {
 struct Square {
     double side;
 
+    Square(double s) : side(s) {}
+
+    ~Square() {}
+    Square(Square&&) = default;
+    Square(const Square&) = default;
+    Square& operator=(Square&&) = default;
+    Square& operator=(const Square&) = default;
+
     double area() const { return side * side; }
-
     double perimeter() const { return 4 * side; }
-
     void draw() const { std::println("Square(a={})", side); }
 };
 
@@ -62,20 +69,32 @@ struct Rectangle {
     double length;
     double width;
 
+    Rectangle(double l, double w) : length(l), width(w) {}
+
+    ~Rectangle() {}
+    Rectangle(Rectangle&&) = default;
+    Rectangle(const Rectangle&) = default;
+    Rectangle& operator=(Rectangle&&) = default;
+    Rectangle& operator=(const Rectangle&) = default;
+
     double area() const { return length * width; }
-
     double perimeter() const { return 2 * (length + width); }
-
     void draw() const { std::println("Rectangle(l={}, w={})", length, width); }
 };
 
 struct Circle {
     double radius;
 
+    Circle(double r) : radius(r) {}
+
+    ~Circle() {}
+    Circle(Circle&&) = default;
+    Circle(const Circle&) = default;
+    Circle& operator=(Circle&&) = default;
+    Circle& operator=(const Circle&) = default;
+
     double area() const { return std::numbers::pi * radius * radius; }
-
     double perimeter() const { return 2 * std::numbers::pi * radius; }
-
     void draw() const { std::println("Circle(r={})", radius); }
 };
 
@@ -120,6 +139,27 @@ struct BoostTeShape final : te::poly<BoostTeShape, te::sbo_storage<sizeof(Rectan
     }
 };
 
+PRO_DEF_MEM_DISPATCH(MemArea, area);
+PRO_DEF_MEM_DISPATCH(MemPerimeter, perimeter);
+PRO_DEF_MEM_DISPATCH(MemDraw, draw);
+
+// clang-format off
+struct ProxyShapeFacade : pro::facade_builder
+    ::add_convention<MemArea, double() const>
+    ::add_convention<MemPerimeter, double() const>
+    ::add_convention<MemDraw, void() const>
+    ::support_copy<pro::constraint_level::none>
+    ::build {
+    // Why not sizeof(Rectangle)? -- we did that for boost::te and woid after all!
+    // Proxy does SBO only for the types that are trivially movable and destructible,
+    // which our shapes are (intentionally) not.
+    // So this size is necessary and sufficient.
+    static constexpr std::size_t max_size = sizeof(void*);
+};
+// clang-format on
+
+using ProxyShape = pro::proxy<ProxyShapeFacade>;
+
 auto makeRandomDoubles(int N) {
     std::vector<double> result(N);
 
@@ -132,6 +172,10 @@ auto makeRandomDoubles(int N) {
 
 template <typename I>
 constexpr static auto kComparator = [](const I& i, const I& j) { return i.area() < j.area(); };
+
+template <>
+constexpr auto kComparator<ProxyShape>
+    = [](const ProxyShape& i, const ProxyShape& j) { return i->area() < j->area(); };
 
 template <typename T>
 constexpr static auto kComparator<std::unique_ptr<T>> =
@@ -154,6 +198,13 @@ auto constexpr kPopulate<BoostTeShape> = [](auto& v, auto it, size_t N) {
     doN(N, [&] { v.emplace_back(Circle{*it++}); });
     doN(N, [&] { v.emplace_back(Square{*it++}); });
     doN(N, [&] { v.emplace_back(Rectangle{*it++, *it++}); });
+};
+
+template <>
+auto constexpr kPopulate<ProxyShape> = [](auto& v, auto it, size_t N) {
+    doN(N, [&] { v.push_back(pro::make_proxy<ProxyShapeFacade, Circle>(*it++)); });
+    doN(N, [&] { v.push_back(pro::make_proxy<ProxyShapeFacade, Square>(*it++)); });
+    doN(N, [&] { v.push_back(pro::make_proxy<ProxyShapeFacade, Rectangle>(*it++, *it++)); });
 };
 
 template <>
@@ -220,13 +271,13 @@ BENCHMARK(instantiateAndMinShapes<WoidShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeDedicated>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeSharedDynamic>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<BoostTeShape>)->Apply(setRange);
+BENCHMARK(instantiateAndMinShapes<ProxyShape>)->Apply(setRange);
 
 BENCHMARK(instantiateAndSortShapes<VShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeDedicated>)->Apply(setRange);
-BENCHMARK(instantiateAndSortShapes<std::unique_ptr<WoidShapeShared>>)->Apply(setRange);
-BENCHMARK(instantiateAndSortShapes<std::unique_ptr<WoidShapeDedicated>>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeSharedDynamic>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<BoostTeShape>)->Apply(setRange);
+BENCHMARK(instantiateAndSortShapes<ProxyShape>)->Apply(setRange);
 
 BENCHMARK_MAIN();

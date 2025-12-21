@@ -6,6 +6,11 @@ target_include_directories(te INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/te/include"
 )
 
+add_library(proxy INTERFACE)
+target_include_directories(proxy INTERFACE
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/proxy/include"
+)
+
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -77,7 +82,7 @@ add_executable(FunBench bench/fun_bench.cpp)
 target_link_libraries(FunBench benchmark::benchmark)
 
 add_executable(InterfaceBench bench/interface_bench.cpp)
-target_link_libraries(InterfaceBench benchmark::benchmark te)
+target_link_libraries(InterfaceBench benchmark::benchmark te proxy)
 
 add_library(CrossTuLib SHARED test/cross_tu_lib.cpp)
 
