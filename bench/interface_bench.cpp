@@ -1,10 +1,9 @@
 #include "woid.hpp"
 #include <algorithm>
 #include <benchmark/benchmark.h>
+#include <boost/te.hpp>
 #include <print>
 #include <random>
-#include <ranges>
-#include <type_traits>
 
 using namespace woid;
 
@@ -111,6 +110,16 @@ struct WoidShapeSharedDynamic : DedicatedShardBase {
     double area() const { return call<"area">(); }
 };
 
+namespace te = boost::te;
+
+struct BoostTeShape final : te::poly<BoostTeShape, te::sbo_storage<sizeof(Rectangle)>> {
+    using te::poly<BoostTeShape, te::sbo_storage<sizeof(Rectangle)>>::poly;
+
+    double area() const {
+        return te::call<double>([](auto const& self) -> double { return self.area(); }, *this);
+    }
+};
+
 auto makeRandomDoubles(int N) {
     std::vector<double> result(N);
 
@@ -138,6 +147,13 @@ static auto constexpr kPopulate = [](auto& v, auto it, size_t N) {
     doN(N, [&] { v.emplace_back(std::in_place_type<Circle>, *it++); });
     doN(N, [&] { v.emplace_back(std::in_place_type<Square>, *it++); });
     doN(N, [&] { v.emplace_back(std::in_place_type<Rectangle>, *it++, *it++); });
+};
+
+template <>
+auto constexpr kPopulate<BoostTeShape> = [](auto& v, auto it, size_t N) {
+    doN(N, [&] { v.emplace_back(Circle{*it++}); });
+    doN(N, [&] { v.emplace_back(Square{*it++}); });
+    doN(N, [&] { v.emplace_back(Rectangle{*it++, *it++}); });
 };
 
 template <>
@@ -203,6 +219,7 @@ BENCHMARK(instantiateAndMinShapes<VShape>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeDedicated>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeSharedDynamic>)->Apply(setRange);
+BENCHMARK(instantiateAndMinShapes<BoostTeShape>)->Apply(setRange);
 
 BENCHMARK(instantiateAndSortShapes<VShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeShared>)->Apply(setRange);
@@ -210,5 +227,6 @@ BENCHMARK(instantiateAndSortShapes<WoidShapeDedicated>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<std::unique_ptr<WoidShapeShared>>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<std::unique_ptr<WoidShapeDedicated>>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeSharedDynamic>)->Apply(setRange);
+BENCHMARK(instantiateAndSortShapes<BoostTeShape>)->Apply(setRange);
 
 BENCHMARK_MAIN();

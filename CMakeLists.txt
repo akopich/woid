@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
 project(woid)
 
+add_library(te INTERFACE)
+target_include_directories(te INTERFACE
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/te/include"
+)
+
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -72,7 +77,7 @@ add_executable(FunBench bench/fun_bench.cpp)
 target_link_libraries(FunBench benchmark::benchmark)
 
 add_executable(InterfaceBench bench/interface_bench.cpp)
-target_link_libraries(InterfaceBench benchmark::benchmark)
+target_link_libraries(InterfaceBench benchmark::benchmark te)
 
 add_library(CrossTuLib SHARED test/cross_tu_lib.cpp)
 
