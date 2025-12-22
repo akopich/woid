@@ -124,23 +124,36 @@ constexpr static auto mkTestCases(auto StorageTypes, auto StoredTypes) {
                            mk<TestCase>);
 }
 
+struct SmallInt {
+    int i;
+    inline static size_t cnt = 0;
+};
+static_assert(std::is_trivially_move_constructible_v<SmallInt>);
+struct BigInt {
+    inline static size_t cnt = 0;
+    std::array<char, 500> bigginess;
+    int i;
+    BigInt(int i) : i(i) {}
+};
+static_assert(std::is_trivially_move_constructible_v<BigInt>);
+constexpr auto TrivialStorageTypes = hana::tuple_t<TrivialStorage<>>;
+constexpr auto TrivialValueTypes = hana::tuple_t<SmallInt, BigInt>;
+
 constexpr auto CopyTypesCopyStorageTestCases = mkTestCases(CopyStorageTypes, CopyTypes);
 constexpr auto MoveTestCases
-    = hana::concat(mkTestCases(MoveOnlyStorageTypes, ValueTypes), CopyTypesCopyStorageTestCases);
+    = hana::flatten(hana::make_tuple(mkTestCases(MoveOnlyStorageTypes, ValueTypes),
+                                     CopyTypesCopyStorageTestCases,
+                                     mkTestCases(TrivialStorageTypes, TrivialValueTypes)));
 constexpr auto CopyTypesTestCases
     = hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCases);
-
-constexpr auto SafeAnyCastTestCases = hana::filter(MoveTestCases, [](auto testCase) {
-    using S = decltype(testCase)::type::Storage;
-    return hana::bool_c < S::kSafeAnyCast == SafeAnyCast::ENABLED > ;
-});
 
 constexpr auto MoveTestCasesWithBigObject = hana::filter(MoveTestCases, [](auto testCase) {
     using TC = decltype(testCase)::type;
     using Storage = TC::Storage;
     using Value = TC::Value;
-    return hana::bool_c<(Storage::kStaticStorageSize < sizeof(Value)
-                         || Storage::kStaticStorageAlignment < alignof(Value))>;
+    return hana::bool_c < (Storage::kStaticStorageSize < sizeof(Value)
+                           || Storage::kStaticStorageAlignment < alignof(Value))
+           && (!std::is_same_v<Value, BigInt> && !std::is_same_v<Value, SmallInt>) > ;
 });
 
 template <auto HanaTuple>
@@ -767,6 +780,11 @@ TYPED_TEST(StrongEgCopyableStorage, throwOnCopyStrong) {
     }
     ASSERT_EQ(Bomb::cnt, 0);
 }
+
+constexpr auto SafeAnyCastTestCases = hana::filter(MoveTestCases, [](auto testCase) {
+    using S = decltype(testCase)::type::Storage;
+    return hana::bool_c < S::kSafeAnyCast == SafeAnyCast::ENABLED > ;
+});
 
 template <typename T>
 struct SafeAnyCastTest : EgTest<T> {};

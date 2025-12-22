@@ -788,6 +788,83 @@ class DynamicStorage {
     }
 };
 
+template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
+    requires(Size >= sizeof(void*) && Alignment >= alignof(void*)) class TrivialStorage {
+  private:
+    alignas(Alignment) std::array<char, Size> storage;
+    bool isOnHeap;
+
+  public:
+    inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
+    inline static constexpr auto kStaticStorageSize = Size;
+    inline static constexpr auto kStaticStorageAlignment = Alignment;
+    inline static constexpr auto kSafeAnyCast = SafeAnyCast::DISABLED;
+
+    template <typename T, typename... Args, typename TnoRef = std::remove_cvref_t<T>>
+        requires(std::is_trivially_move_constructible_v<TnoRef>
+                 && std::is_trivially_destructible_v<TnoRef>)
+    TrivialStorage(std::in_place_type_t<T>, Args&&... args) {
+        if constexpr (sizeof(TnoRef) <= Size && alignof(TnoRef) <= Alignment) {
+            isOnHeap = false;
+            new (&storage) T{std::forward<Args>(args)...};
+        } else {
+            isOnHeap = true;
+            size_t alloc_size = (sizeof(TnoRef) + Alignment - 1) & ~(Alignment - 1);
+            void* p = std::aligned_alloc(Alignment, alloc_size);
+            *reinterpret_cast<void**>(&storage) = p;
+            new (p) TnoRef{std::forward<Args>(args)...};
+        }
+    }
+    template <typename T>
+    explicit TrivialStorage(T&& t)
+        requires(!std::is_same_v<std::remove_cvref_t<T>, TrivialStorage>)
+          : TrivialStorage(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
+
+    ~TrivialStorage() { reset(); }
+
+    TrivialStorage(const TrivialStorage&) = delete;
+    TrivialStorage& operator=(const TrivialStorage&) = delete;
+
+    TrivialStorage(TrivialStorage&& other) noexcept
+          : storage(other.storage), isOnHeap(other.isOnHeap) {
+        other.isOnHeap = false;
+    }
+
+    TrivialStorage& operator=(TrivialStorage&& other) noexcept {
+        if (this != &other) {
+            reset();
+            storage = other.storage;
+            isOnHeap = other.isOnHeap;
+            other.isOnHeap = false;
+        }
+        return *this;
+    }
+
+    template <typename T, typename Self>
+    T get(this Self&& self) {
+        using TnoRef = std::remove_cvref_t<T>;
+        auto p = const_cast<void*>(std::forward<Self>(self).ptr());
+        if constexpr (!(sizeof(TnoRef) <= Size && alignof(TnoRef) <= Alignment)) {
+            p = *static_cast<void**>(p);
+        }
+        return detail::star<T, Self>(p);
+    }
+
+  private:
+    void reset() {
+        if (isOnHeap) {
+            std::free(*reinterpret_cast<char**>(&storage));
+            isOnHeap = false;
+        }
+    }
+
+    template <typename Self>
+    decltype(auto) ptr(this Self&& self) {
+        return static_cast<detail::RetainConstPtr<Self, void>>(
+            std::launder(&std::forward<Self>(self).storage.front()));
+    }
+};
+
 struct Ref : detail::RefImpl<false> {
     using detail::RefImpl<false>::RefImpl;
 

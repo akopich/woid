@@ -261,7 +261,7 @@ def get_base_container(list1: List[Any], list2: List[Any]) -> Optional[Any]:
     return (list(list2))[i]
 
 def plot_benchmark_comparison(benchmark_name: str, container_data: dict[str, Results]):
-    BASE_CONTAINERS = ["std::any", "std::function", "std::move_only_function", "VShape"]
+    BASE_CONTAINERS = ["std::any", "std::function", "std::move_only_function", "VShape", "ProxyTrivialShape"]
     BASE_CONTAINER = get_base_container(BASE_CONTAINERS, container_data.keys())
     if BASE_CONTAINER is None:
         print(f"Error: Cannot calculate speedup for '{benchmark_name}' as a baseline container in missing.")

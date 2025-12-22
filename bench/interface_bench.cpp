@@ -5,6 +5,7 @@
 #include <print>
 #include <proxy/proxy.h>
 #include <random>
+#include <type_traits>
 
 using namespace woid;
 
@@ -49,12 +50,17 @@ struct VCircle : VShape {
     void draw() const override { std::println("VCircle(r={})", radius); }
 };
 
+template <bool IsTrivial>
 struct Square {
     double side;
 
     Square(double s) : side(s) {}
 
-    ~Square() {}
+    ~Square()
+        requires(!IsTrivial) {}
+    ~Square()
+        requires(IsTrivial)
+    = default;
     Square(Square&&) = default;
     Square(const Square&) = default;
     Square& operator=(Square&&) = default;
@@ -65,13 +71,25 @@ struct Square {
     void draw() const { std::println("Square(a={})", side); }
 };
 
+template <typename T>
+static constexpr inline bool IsTriviallyRelocatable
+    = std::is_trivially_move_constructible_v<T> && std::is_trivially_destructible_v<T>;
+
+static_assert(IsTriviallyRelocatable<Square<true>>);
+static_assert(!IsTriviallyRelocatable<Square<false>>);
+
+template <bool IsTrivial>
 struct Rectangle {
     double length;
     double width;
 
     Rectangle(double l, double w) : length(l), width(w) {}
 
-    ~Rectangle() {}
+    ~Rectangle()
+        requires(!IsTrivial) {}
+    ~Rectangle()
+        requires(IsTrivial)
+    = default;
     Rectangle(Rectangle&&) = default;
     Rectangle(const Rectangle&) = default;
     Rectangle& operator=(Rectangle&&) = default;
@@ -82,12 +100,20 @@ struct Rectangle {
     void draw() const { std::println("Rectangle(l={}, w={})", length, width); }
 };
 
+static_assert(IsTriviallyRelocatable<Rectangle<true>>);
+static_assert(!IsTriviallyRelocatable<Rectangle<false>>);
+
+template <bool IsTrivial>
 struct Circle {
     double radius;
 
     Circle(double r) : radius(r) {}
 
-    ~Circle() {}
+    ~Circle()
+        requires(!IsTrivial) {}
+    ~Circle()
+        requires(IsTrivial)
+    = default;
     Circle(Circle&&) = default;
     Circle(const Circle&) = default;
     Circle& operator=(Circle&&) = default;
@@ -98,11 +124,17 @@ struct Circle {
     void draw() const { std::println("Circle(r={})", radius); }
 };
 
-static_assert(alignof(Rectangle) == alignof(void*));
+static_assert(IsTriviallyRelocatable<Circle<true>>);
+static_assert(!IsTriviallyRelocatable<Circle<false>>);
+
+static_assert(alignof(Rectangle<true>) == alignof(void*));
+static_assert(alignof(Rectangle<false>) == alignof(void*));
+
+static constexpr int kRectangleSize = sizeof(Rectangle<true>);
 
 // clang-format off
 using Builder = woid::InterfaceBuilder
-           ::WithStorage<woid::Any<sizeof(Rectangle), woid::Copy::DISABLED>>
+           ::WithStorage<woid::Any<kRectangleSize, woid::Copy::DISABLED>>
            ::Fun<"area", [](const auto& obj) -> double { return obj.area(); } >
            ::Method<"perimieter", double()const, []<typename T> {return &T::perimeter; } >
            ::Method<"draw", void()const, []<typename T> {return &T::draw; } > ;
@@ -111,6 +143,12 @@ using Builder = woid::InterfaceBuilder
 using SharedBase = Builder::WithSharedVTable::Build;
 
 using DedicatedBase = Builder::WithDedicatedVTable::Build;
+
+using SharedTrivialBase
+    = Builder::WithSharedVTable::WithStorage<TrivialStorage<kRectangleSize>>::Build;
+
+using DedicatedTrivialBase
+    = Builder::WithDedicatedVTable::WithStorage<TrivialStorage<kRectangleSize>>::Build;
 
 struct WoidShapeShared : SharedBase {
     using SharedBase::SharedBase;
@@ -122,17 +160,27 @@ struct WoidShapeDedicated : DedicatedBase {
     double area() const { return call<"area">(); }
 };
 
-using DedicatedShardBase = Builder::WithSharedVTable::WithStorage<woid::DynamicStorage<>>::Build;
+struct WoidTrivialShapeShared : SharedTrivialBase {
+    using SharedTrivialBase::SharedTrivialBase;
+    double area() const { return call<"area">(); }
+};
 
-struct WoidShapeSharedDynamic : DedicatedShardBase {
-    using DedicatedShardBase::DedicatedShardBase;
+struct WoidTrivialShapeDedicated : DedicatedTrivialBase {
+    using DedicatedTrivialBase::DedicatedTrivialBase;
+    double area() const { return call<"area">(); }
+};
+
+using DynamicShardBase = Builder::WithSharedVTable::WithStorage<woid::DynamicStorage<>>::Build;
+
+struct WoidShapeSharedDynamic : DynamicShardBase {
+    using DynamicShardBase::DynamicShardBase;
     double area() const { return call<"area">(); }
 };
 
 namespace te = boost::te;
 
-struct BoostTeShape final : te::poly<BoostTeShape, te::sbo_storage<sizeof(Rectangle)>> {
-    using te::poly<BoostTeShape, te::sbo_storage<sizeof(Rectangle)>>::poly;
+struct BoostTeShape final : te::poly<BoostTeShape, te::sbo_storage<kRectangleSize>> {
+    using te::poly<BoostTeShape, te::sbo_storage<kRectangleSize>>::poly;
 
     double area() const {
         return te::call<double>([](auto const& self) -> double { return self.area(); }, *this);
@@ -150,15 +198,26 @@ struct ProxyShapeFacade : pro::facade_builder
     ::add_convention<MemDraw, void() const>
     ::support_copy<pro::constraint_level::none>
     ::build {
-    // Why not sizeof(Rectangle)? -- we did that for boost::te and woid after all!
+    // Why not kRectangleSize? -- we did that for boost::te and woid after all!
     // Proxy does SBO only for the types that are trivially movable and destructible,
     // which our shapes are (intentionally) not.
     // So this size is necessary and sufficient.
     static constexpr std::size_t max_size = sizeof(void*);
 };
+
+struct ProxyTrivialShapeFacade : pro::facade_builder
+    ::add_convention<MemArea, double() const>
+    ::add_convention<MemPerimeter, double() const>
+    ::add_convention<MemDraw, void() const>
+    ::support_copy<pro::constraint_level::none>
+    ::support_relocation<pro::constraint_level::trivial>
+    ::build {
+    static constexpr std::size_t max_size = kRectangleSize;
+};
 // clang-format on
 
 using ProxyShape = pro::proxy<ProxyShapeFacade>;
+using ProxyTrivialShape = pro::proxy<ProxyTrivialShapeFacade>;
 
 auto makeRandomDoubles(int N) {
     std::vector<double> result(N);
@@ -170,12 +229,16 @@ auto makeRandomDoubles(int N) {
     return result;
 }
 
+template <typename T>
+constexpr auto inline IsProxy
+    = std::is_same_v<T, ProxyShape> || std::is_same_v<T, ProxyTrivialShape>;
+
 template <typename I>
 constexpr static auto kComparator = [](const I& i, const I& j) { return i.area() < j.area(); };
 
-template <>
-constexpr auto kComparator<ProxyShape>
-    = [](const ProxyShape& i, const ProxyShape& j) { return i->area() < j->area(); };
+template <typename T>
+    requires(IsProxy<T>)
+constexpr auto kComparator<T> = [](const T& i, const T& j) { return i->area() < j->area(); };
 
 template <typename T>
 constexpr static auto kComparator<std::unique_ptr<T>> =
@@ -186,43 +249,37 @@ void doN(size_t N, auto foo) {
         foo();
 }
 
-template <typename I>
+template <typename I, bool IsTrivial>
 static auto constexpr kPopulate = [](auto& v, auto it, size_t N) {
-    doN(N, [&] { v.emplace_back(std::in_place_type<Circle>, *it++); });
-    doN(N, [&] { v.emplace_back(std::in_place_type<Square>, *it++); });
-    doN(N, [&] { v.emplace_back(std::in_place_type<Rectangle>, *it++, *it++); });
+    doN(N, [&] { v.emplace_back(std::in_place_type<Circle<IsTrivial>>, *it++); });
+    doN(N, [&] { v.emplace_back(std::in_place_type<Square<IsTrivial>>, *it++); });
+    doN(N, [&] { v.emplace_back(std::in_place_type<Rectangle<IsTrivial>>, *it++, *it++); });
 };
 
-template <>
-auto constexpr kPopulate<BoostTeShape> = [](auto& v, auto it, size_t N) {
-    doN(N, [&] { v.emplace_back(Circle{*it++}); });
-    doN(N, [&] { v.emplace_back(Square{*it++}); });
-    doN(N, [&] { v.emplace_back(Rectangle{*it++, *it++}); });
+template <bool IsTrivial>
+auto constexpr kPopulate<BoostTeShape, IsTrivial> = [](auto& v, auto it, size_t N) {
+    doN(N, [&] { v.emplace_back(Circle<IsTrivial>{*it++}); });
+    doN(N, [&] { v.emplace_back(Square<IsTrivial>{*it++}); });
+    doN(N, [&] { v.emplace_back(Rectangle<IsTrivial>{*it++, *it++}); });
 };
 
-template <>
-auto constexpr kPopulate<ProxyShape> = [](auto& v, auto it, size_t N) {
-    doN(N, [&] { v.push_back(pro::make_proxy<ProxyShapeFacade, Circle>(*it++)); });
-    doN(N, [&] { v.push_back(pro::make_proxy<ProxyShapeFacade, Square>(*it++)); });
-    doN(N, [&] { v.push_back(pro::make_proxy<ProxyShapeFacade, Rectangle>(*it++, *it++)); });
+template <typename Proxy, bool IsTrivial>
+    requires(IsProxy<Proxy>)
+auto constexpr kPopulate<Proxy, IsTrivial> = [](auto& v, auto it, size_t N) {
+    using Facade = typename Proxy::facade_type;
+    doN(N, [&] { v.push_back(pro::make_proxy<Facade, Circle<IsTrivial>>(*it++)); });
+    doN(N, [&] { v.push_back(pro::make_proxy<Facade, Square<IsTrivial>>(*it++)); });
+    doN(N, [&] { v.push_back(pro::make_proxy<Facade, Rectangle<IsTrivial>>(*it++, *it++)); });
 };
 
-template <>
-auto constexpr kPopulate<std::unique_ptr<VShape>> = [](auto& v, auto it, size_t N) {
+template <bool IsTrivial>
+auto constexpr kPopulate<std::unique_ptr<VShape>, IsTrivial> = [](auto& v, auto it, size_t N) {
     doN(N, [&] { v.emplace_back(new VCircle{*it++}); });
     doN(N, [&] { v.emplace_back(new VSquare{*it++}); });
     doN(N, [&] { v.emplace_back(new VRectangle{*it++, *it++}); });
 };
 
-template <typename I>
-auto constexpr kPopulate<std::unique_ptr<I>> = [](auto& v, auto it, size_t N) {
-    doN(N, [&] { v.emplace_back(new I{std::in_place_type<VCircle>, *it++}); });
-
-    doN(N, [&] { v.emplace_back(new I{std::in_place_type<VSquare>, *it++}); });
-    doN(N, [&] { v.emplace_back(new I{std::in_place_type<VRectangle>, *it++, *it++}); });
-};
-
-template <typename VecElem, auto Algo>
+template <typename VecElem, bool IsTrivial, auto Algo>
 static void bench(benchmark::State& state) {
     size_t N = state.range(0);
     size_t totalShapes = 3 * N;
@@ -236,7 +293,7 @@ static void bench(benchmark::State& state) {
         auto randomIt = randomDims.begin();
         shapes.clear();
 
-        kPopulate<VecElem>(shapes, randomIt, N);
+        kPopulate<VecElem, IsTrivial>(shapes, randomIt, N);
 
         benchmark::DoNotOptimize(Algo(shapes, kComparator<VecElem>));
     }
@@ -244,22 +301,22 @@ static void bench(benchmark::State& state) {
 
 template <typename I>
 static void instantiateAndMinShapes(benchmark::State& state) {
-    bench<I, std::ranges::min_element>(state);
+    bench<I, false, std::ranges::min_element>(state);
 }
 
 template <>
 void instantiateAndMinShapes<VShape>(benchmark::State& state) {
-    bench<std::unique_ptr<VShape>, std::ranges::min_element>(state);
+    bench<std::unique_ptr<VShape>, false, std::ranges::min_element>(state);
 }
 
 template <typename I>
 static void instantiateAndSortShapes(benchmark::State& state) {
-    bench<I, std::ranges::sort>(state);
+    bench<I, false, std::ranges::sort>(state);
 }
 
 template <>
 void instantiateAndSortShapes<VShape>(benchmark::State& state) {
-    bench<std::unique_ptr<VShape>, std::ranges::sort>(state);
+    bench<std::unique_ptr<VShape>, false, std::ranges::sort>(state);
 }
 
 static constexpr size_t N = 1 << 17;
@@ -279,5 +336,23 @@ BENCHMARK(instantiateAndSortShapes<WoidShapeDedicated>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeSharedDynamic>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<BoostTeShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<ProxyShape>)->Apply(setRange);
+
+template <typename I>
+static void instantiateAndMinTrivialShapes(benchmark::State& state) {
+    bench<I, true, std::ranges::min_element>(state);
+}
+
+template <typename I>
+static void instantiateAndSortTrivialShapes(benchmark::State& state) {
+    bench<I, true, std::ranges::sort>(state);
+}
+
+BENCHMARK(instantiateAndMinTrivialShapes<WoidTrivialShapeShared>)->Apply(setRange);
+BENCHMARK(instantiateAndMinTrivialShapes<WoidTrivialShapeDedicated>)->Apply(setRange);
+BENCHMARK(instantiateAndMinTrivialShapes<ProxyTrivialShape>)->Apply(setRange);
+
+BENCHMARK(instantiateAndSortTrivialShapes<WoidTrivialShapeShared>)->Apply(setRange);
+BENCHMARK(instantiateAndSortTrivialShapes<WoidTrivialShapeDedicated>)->Apply(setRange);
+BENCHMARK(instantiateAndSortTrivialShapes<ProxyTrivialShape>)->Apply(setRange);
 
 BENCHMARK_MAIN();
