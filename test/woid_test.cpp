@@ -129,6 +129,14 @@ struct SmallInt {
     inline static size_t cnt = 0;
 };
 static_assert(std::is_trivially_move_constructible_v<SmallInt>);
+
+struct NonTrivialInt {
+    int i;
+    ~NonTrivialInt() {}
+    inline static size_t cnt = 0;
+};
+static_assert(!std::is_trivially_move_constructible_v<NonTrivialInt>);
+
 struct BigInt {
     inline static size_t cnt = 0;
     std::array<char, 500> bigginess;
@@ -136,8 +144,9 @@ struct BigInt {
     BigInt(int i) : i(i) {}
 };
 static_assert(std::is_trivially_move_constructible_v<BigInt>);
+
 constexpr auto TrivialStorageTypes = hana::tuple_t<TrivialStorage<>>;
-constexpr auto TrivialValueTypes = hana::tuple_t<SmallInt, BigInt>;
+constexpr auto TrivialValueTypes = hana::tuple_t<SmallInt, BigInt, NonTrivialInt>;
 
 constexpr auto CopyTypesCopyStorageTestCases = mkTestCases(CopyStorageTypes, CopyTypes);
 constexpr auto MoveTestCases

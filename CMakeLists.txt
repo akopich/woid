@@ -11,7 +11,7 @@ target_include_directories(proxy INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/proxy/include"
 )
 
-set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(SHUFFLE_SEED "Seed for ASLR." OFF)
@@ -38,11 +38,15 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "DebugWithExceptions")
     add_compile_options("-fexceptions" "-g3" "-O0")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options("-fno-exceptions" "-O3" "-DNDEBUG" "-fno-rtti")
+elseif(CMAKE_BUILD_TYPE STREQUAL "ReleaseNative")
+    add_compile_options("-fno-exceptions" "-O3" "-DNDEBUG" "-fno-rtti" "-march=native")
 elseif(CMAKE_BUILD_TYPE STREQUAL "ReleaseWithExceptions")
     add_compile_options("-O3" "-DNDEBUG" "-fno-rtti")
 elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     # Profiling/Release with Debug Info flags
     add_compile_options("-fno-exceptions" "-fno-omit-frame-pointer" "-g" "-O3" "-fno-rtti")
+elseif(CMAKE_BUILD_TYPE STREQUAL "FastBuild")
+    add_compile_options( "-O0" "-g0" "-fno-exceptions" "-fno-rtti")
 elseif(CMAKE_BUILD_TYPE STREQUAL "AUBSan")
     add_compile_options("-fno-exceptions" "-g" "-O1"
                         "-fsanitize=address,undefined"

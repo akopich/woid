@@ -349,10 +349,14 @@ static void instantiateAndSortTrivialShapes(benchmark::State& state) {
 
 BENCHMARK(instantiateAndMinTrivialShapes<WoidTrivialShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndMinTrivialShapes<WoidTrivialShapeDedicated>)->Apply(setRange);
+BENCHMARK(instantiateAndMinTrivialShapes<WoidShapeShared>)->Apply(setRange);
+BENCHMARK(instantiateAndMinTrivialShapes<WoidShapeDedicated>)->Apply(setRange);
 BENCHMARK(instantiateAndMinTrivialShapes<ProxyTrivialShape>)->Apply(setRange);
 
 BENCHMARK(instantiateAndSortTrivialShapes<WoidTrivialShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndSortTrivialShapes<WoidTrivialShapeDedicated>)->Apply(setRange);
+BENCHMARK(instantiateAndSortTrivialShapes<WoidShapeShared>)->Apply(setRange);
+BENCHMARK(instantiateAndSortTrivialShapes<WoidShapeDedicated>)->Apply(setRange);
 BENCHMARK(instantiateAndSortTrivialShapes<ProxyTrivialShape>)->Apply(setRange);
 
 BENCHMARK_MAIN();

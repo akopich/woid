@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <cstring>
@@ -251,6 +252,12 @@ inline void reportBadAnyCast() {
 #endif
 }
 
+template <typename Self, typename S>
+decltype(auto) ptr(S&& s) {
+    return static_cast<detail::RetainConstPtr<Self, void>>(
+        std::launder(&std::forward<S>(s).front()));
+}
+
 template <auto mmStaticMaker,
           auto mmDynamicMaker,
           std::size_t Size,
@@ -387,8 +394,7 @@ template <auto mmStaticMaker,
 
     template <typename Self>
     decltype(auto) ptr(this Self&& self) {
-        return static_cast<RetainConstPtr<Self, void>>(
-            std::launder(&std::forward<Self>(self).storage.front()));
+        return detail::ptr<Self>(std::forward<Self>(self).storage);
     }
 };
 
@@ -794,6 +800,14 @@ template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
     alignas(Alignment) std::array<char, Size> storage;
     bool isOnHeap;
 
+    template <typename T>
+    constexpr inline static bool kIsTriviallyRelocatable
+        = std::is_trivially_move_constructible_v<T> && std::is_trivially_destructible_v<T>;
+
+    template <typename T>
+    constexpr inline static bool kOnHeap
+        = sizeof(T) > Size || alignof(T) > Alignment || !kIsTriviallyRelocatable<T>;
+
   public:
     inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
     inline static constexpr auto kStaticStorageSize = Size;
@@ -801,18 +815,16 @@ template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
     inline static constexpr auto kSafeAnyCast = SafeAnyCast::DISABLED;
 
     template <typename T, typename... Args, typename TnoRef = std::remove_cvref_t<T>>
-        requires(std::is_trivially_move_constructible_v<TnoRef>
-                 && std::is_trivially_destructible_v<TnoRef>)
     TrivialStorage(std::in_place_type_t<T>, Args&&... args) {
-        if constexpr (sizeof(TnoRef) <= Size && alignof(TnoRef) <= Alignment) {
-            isOnHeap = false;
-            new (&storage) T{std::forward<Args>(args)...};
-        } else {
+        if constexpr (kOnHeap<TnoRef>) {
             isOnHeap = true;
-            size_t alloc_size = (sizeof(TnoRef) + Alignment - 1) & ~(Alignment - 1);
-            void* p = std::aligned_alloc(Alignment, alloc_size);
+            size_t allocSize = (sizeof(TnoRef) + Alignment - 1) & ~(Alignment - 1);
+            void* p = std::aligned_alloc(Alignment, allocSize);
             *reinterpret_cast<void**>(&storage) = p;
             new (p) TnoRef{std::forward<Args>(args)...};
+        } else {
+            isOnHeap = false;
+            new (&storage) T{std::forward<Args>(args)...};
         }
     }
     template <typename T>
@@ -844,7 +856,7 @@ template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
     T get(this Self&& self) {
         using TnoRef = std::remove_cvref_t<T>;
         auto p = const_cast<void*>(std::forward<Self>(self).ptr());
-        if constexpr (!(sizeof(TnoRef) <= Size && alignof(TnoRef) <= Alignment)) {
+        if constexpr (kOnHeap<TnoRef>) {
             p = *static_cast<void**>(p);
         }
         return detail::star<T, Self>(p);
@@ -853,15 +865,14 @@ template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
   private:
     void reset() {
         if (isOnHeap) {
-            std::free(*reinterpret_cast<char**>(&storage));
+            std::free(*reinterpret_cast<char**>(&storage.front()));
             isOnHeap = false;
         }
     }
 
     template <typename Self>
     decltype(auto) ptr(this Self&& self) {
-        return static_cast<detail::RetainConstPtr<Self, void>>(
-            std::launder(&std::forward<Self>(self).storage.front()));
+        return detail::ptr<Self>(std::forward<Self>(self).storage);
     }
 };
 
