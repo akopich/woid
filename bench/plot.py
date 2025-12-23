@@ -46,7 +46,7 @@ def build_bench(shuffle_seed: int, target: str) -> subprocess.CompletedProcess:
     command_template = (
         "cmake -Bbuild -H. "
         "-DCMAKE_BUILD_TYPE=Release "
-        "-DCC_SELECTION=gcc "
+        "-DCC_SELECTION=clang "
         "-DSHUFFLE_SEED={seed}"
     )
 
