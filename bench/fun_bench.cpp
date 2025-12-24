@@ -54,6 +54,8 @@ BENCHMARK(benchVectorStdLess<Id<std::less<int>>>)->Apply(setRange);
 BENCHMARK(benchVectorStdLess<Fun<Any<8>, bool(int, int)>>)->Apply(setRange);
 BENCHMARK(benchVectorStdLess<Fun<Any<8>, bool(int, int) const>>)->Apply(setRange);
 BENCHMARK(benchVectorStdLess<Fun<Any<8>, bool(int, int) const noexcept>>)->Apply(setRange);
+BENCHMARK(benchVectorStdLess<Fun<TrivialStorage<8>, bool(int, int) const noexcept>>)
+    ->Apply(setRange);
 BENCHMARK(benchVectorStdLess<std::function<bool(int, int)>>)->Apply(setRange);
 
 BENCHMARK(benchVectorBigLess<Id<BigLess<32>>>)->Apply(setRange);

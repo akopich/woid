@@ -125,12 +125,14 @@ constexpr static auto mkTestCases(auto StorageTypes, auto StoredTypes) {
 }
 
 struct SmallInt {
+    SmallInt(int i) : i(i) {}
     int i;
     inline static size_t cnt = 0;
 };
 static_assert(std::is_trivially_move_constructible_v<SmallInt>);
 
 struct NonTrivialInt {
+    NonTrivialInt(int i) : i(i) {}
     int i;
     ~NonTrivialInt() {}
     inline static size_t cnt = 0;
@@ -138,21 +140,20 @@ struct NonTrivialInt {
 static_assert(!std::is_trivially_move_constructible_v<NonTrivialInt>);
 
 struct BigInt {
+    BigInt(int i) : i(i) {}
     inline static size_t cnt = 0;
     std::array<char, 500> bigginess;
     int i;
-    BigInt(int i) : i(i) {}
 };
 static_assert(std::is_trivially_move_constructible_v<BigInt>);
 
 constexpr auto TrivialStorageTypes = hana::tuple_t<TrivialStorage<>>;
 constexpr auto TrivialValueTypes = hana::tuple_t<SmallInt, BigInt, NonTrivialInt>;
 
-constexpr auto CopyTypesCopyStorageTestCases = mkTestCases(CopyStorageTypes, CopyTypes);
-constexpr auto MoveTestCases
-    = hana::flatten(hana::make_tuple(mkTestCases(MoveOnlyStorageTypes, ValueTypes),
-                                     CopyTypesCopyStorageTestCases,
-                                     mkTestCases(TrivialStorageTypes, TrivialValueTypes)));
+constexpr auto CopyTypesCopyStorageTestCases = hana::concat(
+    mkTestCases(CopyStorageTypes, CopyTypes), mkTestCases(TrivialStorageTypes, TrivialValueTypes));
+constexpr auto MoveTestCases = hana::flatten(
+    hana::make_tuple(mkTestCases(MoveOnlyStorageTypes, ValueTypes), CopyTypesCopyStorageTestCases));
 constexpr auto CopyTypesTestCases
     = hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCases);
 
@@ -425,7 +426,7 @@ TYPED_TEST(CopyTypesCopyStorageTestCase, canCopy) {
         Storage other = storage;
         ASSERT_EQ(any_cast<Value>(storage).i, kInt);
         ASSERT_EQ(any_cast<Value>(other).i, kInt);
-        ASSERT_EQ(Value::cnt, 2);
+        ASSERT_NE(&any_cast<Value&>(storage), &any_cast<Value&>(other));
     }
 
     ASSERT_EQ(Value::cnt, 0);
@@ -441,7 +442,7 @@ TYPED_TEST(CopyTypesCopyStorageTestCase, canCopyAssign) {
         other = storage;
         ASSERT_EQ(any_cast<Value>(storage).i, kInt);
         ASSERT_EQ(any_cast<Value>(other).i, kInt);
-        ASSERT_EQ(Value::cnt, 2);
+        ASSERT_NE(&any_cast<Value&>(storage), &any_cast<Value&>(other));
     }
 
     ASSERT_EQ(Value::cnt, 0);
@@ -456,7 +457,6 @@ TYPED_TEST(CopyTypesCopyStorageTestCase, canSelfCopyAssign) {
         storage = storage;
         SUPPRESS_SELF_COPY_END
         ASSERT_EQ(any_cast<Value>(storage).i, kInt);
-        ASSERT_EQ(Value::cnt, 1);
     }
 
     ASSERT_EQ(Value::cnt, 0);

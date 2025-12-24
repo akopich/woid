@@ -6,6 +6,7 @@
 #include <cstring>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -797,8 +798,8 @@ class DynamicStorage {
 template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
     requires(Size >= sizeof(void*) && Alignment >= alignof(void*)) class TrivialStorage {
   private:
+    uint32_t heapSize;
     alignas(Alignment) std::array<char, Size> storage;
-    bool isOnHeap;
 
     template <typename T>
     constexpr inline static bool kIsTriviallyRelocatable
@@ -817,37 +818,49 @@ template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
     template <typename T, typename... Args, typename TnoRef = std::remove_cvref_t<T>>
     TrivialStorage(std::in_place_type_t<T>, Args&&... args) {
         if constexpr (kOnHeap<TnoRef>) {
-            isOnHeap = true;
-            size_t allocSize = (sizeof(TnoRef) + Alignment - 1) & ~(Alignment - 1);
+            constexpr size_t allocSize = (sizeof(TnoRef) + Alignment - 1) & ~(Alignment - 1);
+            static_assert(allocSize <= std::numeric_limits<uint32_t>::max());
             void* p = std::aligned_alloc(Alignment, allocSize);
             *reinterpret_cast<void**>(&storage) = p;
+            heapSize = allocSize;
             new (p) TnoRef{std::forward<Args>(args)...};
         } else {
-            isOnHeap = false;
+            heapSize = 0;
             new (&storage) T{std::forward<Args>(args)...};
         }
     }
     template <typename T>
-    explicit TrivialStorage(T&& t)
         requires(!std::is_same_v<std::remove_cvref_t<T>, TrivialStorage>)
+    explicit TrivialStorage(T&& t)
           : TrivialStorage(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
 
     ~TrivialStorage() { reset(); }
 
-    TrivialStorage(const TrivialStorage&) = delete;
-    TrivialStorage& operator=(const TrivialStorage&) = delete;
+    TrivialStorage(const TrivialStorage& other) : heapSize(other.heapSize) {
+        if (heapSize > 0) {
+            char* p = reinterpret_cast<char*>(std::aligned_alloc(Alignment, heapSize));
+            *reinterpret_cast<void**>(&storage) = p;
+            std::copy_n(*reinterpret_cast<char* const*>(&other.storage), heapSize, p);
+        } else {
+            storage = other.storage;
+        }
+    }
+    TrivialStorage& operator=(const TrivialStorage& other) {
+        *this = TrivialStorage(other);
+        return *this;
+    }
 
     TrivialStorage(TrivialStorage&& other) noexcept
-          : storage(other.storage), isOnHeap(other.isOnHeap) {
-        other.isOnHeap = false;
+          : heapSize(other.heapSize), storage(other.storage) {
+        other.heapSize = 0;
     }
 
     TrivialStorage& operator=(TrivialStorage&& other) noexcept {
         if (this != &other) {
             reset();
             storage = other.storage;
-            isOnHeap = other.isOnHeap;
-            other.isOnHeap = false;
+            heapSize = other.heapSize;
+            other.heapSize = 0;
         }
         return *this;
     }
@@ -864,9 +877,9 @@ template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
 
   private:
     void reset() {
-        if (isOnHeap) {
+        if (heapSize > 0) {
             std::free(*reinterpret_cast<char**>(&storage.front()));
-            isOnHeap = false;
+            heapSize = false;
         }
     }
 
