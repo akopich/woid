@@ -301,7 +301,7 @@ def plot_benchmark_comparison(benchmark_name: str, container_data: dict[str, Res
     # Add a grid and legend for readability
     ax.grid(True, linestyle='--', alpha=0.6)
     ax.axhline(1.0, color='r', linestyle='--', linewidth=0.8, label=f"Baseline ({BASE_CONTAINER})")
-    ax.legend(title="Container", loc='best')
+    ax.legend(title="Container", loc='best', fontsize='medium' if show else 'xx-small')
     ax.set_xscale('log', base=2)
 
     return fig
@@ -332,7 +332,7 @@ if __name__ == "__main__":
             output_filename = f'{clean_bench_name}_speedup.png'
 
             # 2. Save the current figure to a PNG file
-            fig.savefig(output_filename, dpi=300) # Use dpi=300 for high resolution
+            fig.savefig(output_filename, dpi=300)
             # Close the figure to free memory
             plt.close(fig)
 
