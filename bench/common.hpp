@@ -33,8 +33,10 @@ struct NonNoThrowMoveConstructibleInt {
     NonNoThrowMoveConstructibleInt(const NonNoThrowMoveConstructibleInt&) = default;
     NonNoThrowMoveConstructibleInt& operator=(const NonNoThrowMoveConstructibleInt&) = default;
 
-    NonNoThrowMoveConstructibleInt(NonNoThrowMoveConstructibleInt&& other) : x(other.x) {};
-    NonNoThrowMoveConstructibleInt& operator=(NonNoThrowMoveConstructibleInt&&) = default;
+    NonNoThrowMoveConstructibleInt(NonNoThrowMoveConstructibleInt&& other) noexcept(false)
+        = default;
+    NonNoThrowMoveConstructibleInt& operator=(NonNoThrowMoveConstructibleInt&&) noexcept(false)
+        = default;
 
     ~NonNoThrowMoveConstructibleInt() = default;
 };

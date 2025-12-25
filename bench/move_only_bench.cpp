@@ -78,16 +78,17 @@ static void benchVectorConstructionAndSort(benchmark::State& state) {
 }
 
 template <typename Any>
-static auto benchVectorConstructionInt = benchVectorConstructionAndSort<Any, int>;
+static auto benchVectorConstructionAndSortInt = benchVectorConstructionAndSort<Any, int>;
 
 template <typename Any>
-static auto benchVectorConstructionIntSafety = benchVectorConstructionAndSort<Any, int>;
+static auto benchVectorConstructionAndSortIntSafety = benchVectorConstructionAndSort<Any, int>;
 
 template <typename Any>
-static auto benchVectorConstructionInt64 = benchVectorConstructionAndSort<Any, std::uint64_t>;
+static auto benchVectorConstructionAndSortInt64
+    = benchVectorConstructionAndSort<Any, std::uint64_t>;
 
 template <typename Any>
-static auto benchVectorConstructionInt128
+static auto benchVectorConstructionAndSortInt128
     = benchVectorConstructionAndSort<Any, bench_common::Int128>;
 
 template <typename Any>
@@ -97,89 +98,91 @@ static auto benchVectorConstructionThrowInt
 constexpr auto setRange
     = [](auto* bench) -> void { bench->MinWarmUpTime(1)->RangeMultiplier(2)->Range(1, N); };
 
-BENCHMARK(benchVectorConstructionIntSafety<Any<8,
-                                               Copy::DISABLED,
-                                               ExceptionGuarantee::NONE,
-                                               alignof(void*),
-                                               FunPtr::COMBINED,
-                                               SafeAnyCast::ENABLED>>)
+BENCHMARK(benchVectorConstructionAndSortIntSafety<Any<8,
+                                                      Copy::DISABLED,
+                                                      ExceptionGuarantee::NONE,
+                                                      alignof(void*),
+                                                      FunPtr::COMBINED,
+                                                      SafeAnyCast::ENABLED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionIntSafety<Any<8,
-                                               Copy::DISABLED,
-                                               ExceptionGuarantee::NONE,
-                                               alignof(void*),
-                                               FunPtr::COMBINED,
-                                               SafeAnyCast::DISABLED>>)
+BENCHMARK(benchVectorConstructionAndSortIntSafety<Any<8,
+                                                      Copy::DISABLED,
+                                                      ExceptionGuarantee::NONE,
+                                                      alignof(void*),
+                                                      FunPtr::COMBINED,
+                                                      SafeAnyCast::DISABLED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionIntSafety<std::any>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortIntSafety<std::any>)->Apply(setRange);
 
-BENCHMARK(benchVectorConstructionInt<
+BENCHMARK(benchVectorConstructionAndSortInt<
               Any<8, Copy::DISABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<
+BENCHMARK(benchVectorConstructionAndSortInt<
               Any<8, Copy::DISABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<
+BENCHMARK(benchVectorConstructionAndSortInt<
               Any<8, Copy::DISABLED, ExceptionGuarantee::BASIC, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<
+BENCHMARK(benchVectorConstructionAndSortInt<
               Any<8, Copy::DISABLED, ExceptionGuarantee::BASIC, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<
+BENCHMARK(benchVectorConstructionAndSortInt<
               Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<
+BENCHMARK(benchVectorConstructionAndSortInt<
               Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<
+BENCHMARK(benchVectorConstructionAndSortInt<
               Any<8, Copy::ENABLED, ExceptionGuarantee::BASIC, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<
+BENCHMARK(benchVectorConstructionAndSortInt<
               Any<8, Copy::ENABLED, ExceptionGuarantee::BASIC, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt<std::any>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt<TrivialStorage<>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt<std::any>)->Apply(setRange);
 
-BENCHMARK(benchVectorConstructionInt128<Any<8,
-                                            Copy::DISABLED,
-                                            ExceptionGuarantee::NONE,
-                                            alignof(void*),
-                                            FunPtr::COMBINED,
-                                            SafeAnyCast::DISABLED,
-                                            Allocator>>)
+BENCHMARK(benchVectorConstructionAndSortInt128<Any<8,
+                                                   Copy::DISABLED,
+                                                   ExceptionGuarantee::NONE,
+                                                   alignof(void*),
+                                                   FunPtr::COMBINED,
+                                                   SafeAnyCast::DISABLED,
+                                                   Allocator>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<Any<8,
-                                            Copy::DISABLED,
-                                            ExceptionGuarantee::NONE,
-                                            alignof(void*),
-                                            FunPtr::DEDICATED,
-                                            SafeAnyCast::DISABLED,
-                                            Allocator>>)
+BENCHMARK(benchVectorConstructionAndSortInt128<Any<8,
+                                                   Copy::DISABLED,
+                                                   ExceptionGuarantee::NONE,
+                                                   alignof(void*),
+                                                   FunPtr::DEDICATED,
+                                                   SafeAnyCast::DISABLED,
+                                                   Allocator>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<
+BENCHMARK(benchVectorConstructionAndSortInt128<
               Any<8, Copy::DISABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<
+BENCHMARK(benchVectorConstructionAndSortInt128<
               Any<8, Copy::DISABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<
+BENCHMARK(benchVectorConstructionAndSortInt128<
               Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<
+BENCHMARK(benchVectorConstructionAndSortInt128<
               Any<8, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<
+BENCHMARK(benchVectorConstructionAndSortInt128<
               Any<16, Copy::DISABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<
+BENCHMARK(benchVectorConstructionAndSortInt128<
               Any<16, Copy::DISABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<
+BENCHMARK(benchVectorConstructionAndSortInt128<
               Any<16, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<
+BENCHMARK(benchVectorConstructionAndSortInt128<
               Any<16, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionInt128<std::any>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt128<TrivialStorage<16>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt128<std::any>)->Apply(setRange);
 
 BENCHMARK(benchVectorConstructionThrowInt<
               Any<8, Copy::DISABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::COMBINED>>)
@@ -218,6 +221,7 @@ BENCHMARK(benchVectorConstructionThrowInt<
 BENCHMARK(benchVectorConstructionThrowInt<
               Any<8, Copy::ENABLED, ExceptionGuarantee::STRONG, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<TrivialStorage<8>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionThrowInt<std::any>)->Apply(setRange);
 
 BENCHMARK_MAIN();
