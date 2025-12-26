@@ -63,7 +63,7 @@ any_cast<T&&>(std::move(storage)); // returns T&&
 ```
 #### `woid::Any`
 
-`woid::Any` is a general-purpose type-erased container. The type accepts 7 template parameters so for the sake of sanity preservation we also provide `woid::AnyBuilder`. The defaults are
+`woid::Any` is a general-purpose *owning* type-erasing container. The type accepts 7 template parameters so for the sake of sanity preservation we also provide `woid::AnyBuilder`. The defaults are
 ```cpp
 using ActualAny = AnyBuilder
                         ::WithSize<sizeof(void*)>
@@ -87,12 +87,14 @@ static_assert(std::is_same_v<ActualAny, Any<>>);
 - `kSafeAnyCast` When `DISABLED`, `any_cast` triggers UB if the requested type does not match the type of the stored object. Otherwise `woid::BadAnyCast` is thrown. See the comment above `woid::SafeAnyCast` definition for details.
 - `Alloc` An allocator we request the memory from if SBO fails. *Note*, it is not `std::allocator`.
 
-#### `woid::DynamicStorage`
+#### `woid::TrivialStorage`
+ `woid::TrivialStorage` is another *owning* storage similar to `woid::Any` in that it utilizes SBO (again, configured via `kSize`/`kAlignment` template parameters). Its performance is tuned for the trivial objects. A non-trivial object **can** be stored, but the SBO fails if the object is not trivially movable or trivially destructible. Additionally, if copying is enabled via the `kCopy` parameter, the object must also be trivially copyable to qualify for SBO.
 
+#### `woid::DynamicStorage`
 `woid::DynamicStorage` is a *move-only owning* type-erased container that does not bother with the SBO. Provides strong exception guarantee.
 
-#### `woid::TrivialStorage`
- `woid::TrivialStorage` is similar to `woid::Any` in that it utilizes SBO (again, configured via `kSize`/`kAlignment` template parameters). Its performance is tuned for the trivial objects. A non-trivial object **can** be stored, but the SBO fails if the object is not trivially movable or trivially destructible. Additionally, if copying is enabled via the `kCopy` parameter, the object must also be trivially copyable to qualify for SBO.
+#### `woid::Ref`/`woid::CRef`
+These two are *non-owning* containers essentially being wrappers over `void*` and `const void*` respectively.
 
 ## Benchmarking
 I promised you performance. To run the benchmarks you would need to pull the libraries we bench against, namely [`boost::te`](https://github.com/boost-ext/te) and [`microsoft/proxy`](https://github.com/microsoft/proxy) with
