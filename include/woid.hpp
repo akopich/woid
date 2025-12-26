@@ -85,7 +85,7 @@ template <typename TL>
 using Tail = HeadTail<TL>::Tail;
 
 template <typename T>
-class TypeTag {
+struct TypeTag {
     using Type = T;
 };
 
@@ -936,8 +936,8 @@ template <size_t Size = 8,
           SafeAnyCast kSafeAnyCast = SafeAnyCast::DISABLED,
           typename Alloc = DefaultAllocator>
 struct AnyBuilderImpl {
-
-    template <auto V, class CurrentBuilder>
+  private:
+    template <auto V>
     struct UpdateEnum {
         using VType = decltype(V);
         static_assert(std::is_same_v<VType, Copy>
@@ -948,28 +948,29 @@ struct AnyBuilderImpl {
                       "ExceptionGuarantee, FunPtr, or SafeAnyCast.");
         static consteval auto chooseType() {
             if constexpr (std::is_same_v<VType, Copy>) {
-                return std::type_identity<
+                return TypeTag<
                     AnyBuilderImpl<Size, V, Eg, Alignment, kFunPtr, kSafeAnyCast, Alloc>>{};
             }
             if constexpr (std::is_same_v<VType, ExceptionGuarantee>) {
-                return std::type_identity<
+                return TypeTag<
                     AnyBuilderImpl<Size, kCopy, V, Alignment, kFunPtr, kSafeAnyCast, Alloc>>{};
             }
             if constexpr (std::is_same_v<VType, FunPtr>) {
-                return std::type_identity<
+                return TypeTag<
                     AnyBuilderImpl<Size, kCopy, Eg, Alignment, V, kSafeAnyCast, Alloc>>{};
             }
             if constexpr (std::is_same_v<VType, SafeAnyCast>) {
-                return std::type_identity<
-                    AnyBuilderImpl<Size, kCopy, Eg, Alignment, kFunPtr, V, Alloc>>{};
+                return TypeTag<AnyBuilderImpl<Size, kCopy, Eg, Alignment, kFunPtr, V, Alloc>>{};
             }
         }
 
-        using Type = decltype(chooseType())::type;
+        using Type = decltype(chooseType())::Type;
     };
 
-    using CurrentBuilder = AnyBuilderImpl<Size, kCopy, Eg, Alignment, kFunPtr, kSafeAnyCast, Alloc>;
+    template <auto V>
+    using With = typename UpdateEnum<V>::Type;
 
+  public:
     template <size_t NewSize>
     using WithSize = AnyBuilderImpl<NewSize, kCopy, Eg, Alignment, kFunPtr, kSafeAnyCast, Alloc>;
 
@@ -980,9 +981,6 @@ struct AnyBuilderImpl {
     template <typename NewAlloc>
     using WithAllocator
         = AnyBuilderImpl<Size, kCopy, Eg, Alignment, kFunPtr, kSafeAnyCast, NewAlloc>;
-
-    template <auto V>
-    using With = typename UpdateEnum<V, CurrentBuilder>::Type;
 
     using EnableCopy = With<Copy::ENABLED>;
     using DisableCopy = With<Copy::DISABLED>;

@@ -220,8 +220,8 @@ TEST(AnyBuilder, canBuild) {
                             ::WithSize<128>
                             ::WithAlignment<2 * alignof(void*)>
                             ::DisableCopy
-                            ::With<ExceptionGuarantee::BASIC>
-                            ::With<SafeAnyCast::ENABLED>
+                            ::WithBasicExceptionGuarantee
+                            ::EnableSafeAnyCast
                             ::WithDedicatedFunPtr
                             ::WithAllocator<detail::OneChunkAllocator<1234>>
                             ::Build;
