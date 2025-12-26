@@ -47,11 +47,11 @@ printArea(Shape{Square{1.5}});
 
 ## Components
 ### Storages
-`Woid` comes with a number of storages. What they have in common is the `woid::any_cast` function that can be used to extract the stored value
+`Woid` provides a number of storages. What they have in common is the `woid::any_cast` function that can be used to extract the stored value
 ```cpp
-any_cast<T>(storage);        // returns T
-any_cast<T&>(storage);       // returns T&
-any_cast<const T&>(storage); // returns const T&
+any_cast<T>(storage);              // returns T
+any_cast<T&>(storage);             // returns T&
+any_cast<const T&>(storage);       // returns const T&
 any_cast<T&&>(std::move(storage)); // returns T&&
 ```
 #### `woid::Any`
