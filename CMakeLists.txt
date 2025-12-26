@@ -64,7 +64,7 @@ else()
     add_compile_options("-fno-exceptions" "-g" "-O0" "-fno-rtti")
 endif()
 
-find_package(Boost 1.76 REQUIRED)
+find_package(Boost 1.76 REQUIRED CONFIG)
 find_package(benchmark REQUIRED)
 find_package(GTest REQUIRED)
 
