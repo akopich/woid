@@ -261,24 +261,24 @@ decltype(auto) ptr(S&& s) {
 
 template <auto mmStaticMaker,
           auto mmDynamicMaker,
-          std::size_t Size,
-          std::size_t Alignment,
-          ExceptionGuarantee Eg,
-          Copy copy,
-          SafeAnyCast Sac,
+          std::size_t kSize,
+          std::size_t kAlignment,
+          ExceptionGuarantee kEg,
+          Copy kCopy,
+          SafeAnyCast kSac,
           typename Alloc_>
-    requires(Size >= sizeof(void*) && Alignment >= alignof(void*)) class Woid {
+    requires(kSize >= sizeof(void*) && kAlignment >= alignof(void*)) class Woid {
   private:
-    static constexpr bool kIsMoveOnly = copy == Copy::DISABLED;
+    static constexpr bool kIsMoveOnly = kCopy == Copy::DISABLED;
 
     using MemManager = GetMemManager<mmStaticMaker>;
     static_assert(std::is_same_v<MemManager, GetMemManager<mmStaticMaker>>);
 
     template <typename T>
     inline static constexpr bool kIsBig
-        = sizeof(T) > Size
-          || alignof(T) > Alignment
-          || (Eg == ExceptionGuarantee::STRONG && !std::is_nothrow_move_constructible_v<T>);
+        = sizeof(T) > kSize
+          || alignof(T) > kAlignment
+          || (kEg == ExceptionGuarantee::STRONG && !std::is_nothrow_move_constructible_v<T>);
 
     template <typename T>
     static constexpr inline auto dynamicMM WOID_NO_ICF
@@ -288,10 +288,10 @@ template <auto mmStaticMaker,
     static constexpr inline auto staticMM WOID_NO_ICF = mmStaticMaker(kTypeTag<T>);
 
   public:
-    inline static constexpr auto kExceptionGuarantee = Eg;
-    inline static constexpr auto kStaticStorageSize = Size;
-    inline static constexpr auto kStaticStorageAlignment = Alignment;
-    inline static constexpr auto kSafeAnyCast = Sac;
+    inline static constexpr auto kExceptionGuarantee = kEg;
+    inline static constexpr auto kStaticStorageSize = kSize;
+    inline static constexpr auto kStaticStorageAlignment = kAlignment;
+    inline static constexpr auto kSafeAnyCast = kSac;
     using Alloc = Alloc_;
 
     template <typename T>
@@ -324,30 +324,30 @@ template <auto mmStaticMaker,
     }
     Woid& operator=(const Woid& other)
         requires(!kIsMoveOnly) {
-        if constexpr (Eg == ExceptionGuarantee::STRONG) {
+        if constexpr (kEg == ExceptionGuarantee::STRONG) {
             *this = Woid{other};
         } else {
             if (this == &other)
                 return *this;
             if (mm != nullptr)
                 mm->del(ptr());
-            if constexpr (Eg == ExceptionGuarantee::BASIC)
+            if constexpr (kEg == ExceptionGuarantee::BASIC)
                 mm = nullptr;
             other.mm->cpy(const_cast<void*>(other.ptr()), ptr());
             mm = other.mm;
         }
         return *this;
     }
-    Woid(Woid&& other) noexcept(Eg != ExceptionGuarantee::BASIC) : mm(other.mm) {
+    Woid(Woid&& other) noexcept(kEg != ExceptionGuarantee::BASIC) : mm(other.mm) {
         mm->move(other.ptr(), ptr());
         other.mm = nullptr;
     }
-    Woid& operator=(Woid&& other) noexcept(Eg != ExceptionGuarantee::BASIC) {
+    Woid& operator=(Woid&& other) noexcept(kEg != ExceptionGuarantee::BASIC) {
         if (this == &other)
             return *this;
         if (mm != nullptr)
             mm->del(ptr());
-        if constexpr (Eg == ExceptionGuarantee::BASIC)
+        if constexpr (kEg == ExceptionGuarantee::BASIC)
             mm = nullptr;
         other.mm->move(other.ptr(), ptr());
         mm = other.mm;
@@ -390,7 +390,7 @@ template <auto mmStaticMaker,
     }
 
   private:
-    alignas(Alignment) std::array<char, Size> storage;
+    alignas(kAlignment) std::array<char, kSize> storage;
     const MemManager* mm;
 
     template <typename Self>
@@ -795,11 +795,15 @@ class DynamicStorage {
     }
 };
 
-template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
+template <size_t Size = sizeof(void*),
+          Copy kCopy = Copy::ENABLED,
+          size_t Alignment = alignof(void*)>
     requires(Size >= sizeof(void*) && Alignment >= alignof(void*)) class TrivialStorage {
   private:
     uint32_t heapSize;
     alignas(Alignment) std::array<char, Size> storage;
+
+    static constexpr bool kIsMoveOnly = kCopy == Copy::DISABLED;
 
     template <typename T>
     constexpr inline static bool kIsTriviallyRelocatable
@@ -807,7 +811,10 @@ template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
 
     template <typename T>
     constexpr inline static bool kOnHeap
-        = sizeof(T) > Size || alignof(T) > Alignment || !kIsTriviallyRelocatable<T>;
+        = sizeof(T) > Size
+          || alignof(T) > Alignment
+          || !kIsTriviallyRelocatable<T>
+          || (!kIsMoveOnly && !std::is_trivially_copy_constructible_v<T>);
 
   public:
     inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
@@ -836,7 +843,9 @@ template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
 
     ~TrivialStorage() { reset(); }
 
-    TrivialStorage(const TrivialStorage& other) : heapSize(other.heapSize) {
+    TrivialStorage(const TrivialStorage& other)
+        requires(!kIsMoveOnly)
+          : heapSize(other.heapSize) {
         if (heapSize > 0) {
             char* p = reinterpret_cast<char*>(std::aligned_alloc(Alignment, heapSize));
             *reinterpret_cast<void**>(&storage) = p;
@@ -845,7 +854,8 @@ template <size_t Size = sizeof(void*), size_t Alignment = alignof(void*)>
             storage = other.storage;
         }
     }
-    TrivialStorage& operator=(const TrivialStorage& other) {
+    TrivialStorage& operator=(const TrivialStorage& other)
+        requires(!kIsMoveOnly) {
         *this = TrivialStorage(other);
         return *this;
     }
@@ -901,26 +911,26 @@ struct CRef : detail::RefImpl<true> {
     CRef(Ref ref) : detail::RefImpl<true>{ConversionTag{}, ref.obj} {}
 };
 
-template <size_t Size,
+template <size_t kSize = sizeof(void*),
           Copy kCopy = Copy::ENABLED,
-          ExceptionGuarantee Eg = ExceptionGuarantee::NONE,
-          size_t Alignment = alignof(void*),
+          ExceptionGuarantee kEg = ExceptionGuarantee::NONE,
+          size_t kAlignment = alignof(void*),
           FunPtr kFunPtr = FunPtr::COMBINED,
           SafeAnyCast kSafeAnyCast = SafeAnyCast::DISABLED,
           typename Alloc = DefaultAllocator>
 struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
                                  detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
-                                 Size,
-                                 Alignment,
-                                 Eg,
+                                 kSize,
+                                 kAlignment,
+                                 kEg,
                                  kCopy,
                                  kSafeAnyCast,
                                  Alloc> {
     using detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
                        detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
-                       Size,
-                       Alignment,
-                       Eg,
+                       kSize,
+                       kAlignment,
+                       kEg,
                        kCopy,
                        kSafeAnyCast,
                        Alloc>::Woid;

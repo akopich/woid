@@ -45,6 +45,48 @@ printArea(Shape{Circle{1.5}});
 printArea(Shape{Square{1.5}});
 ```
 
+## Components
+### Storages
+`Woid` comes with a number of storages. What they have in common is the `woid::any_cast` function that can be used to extract the stored value
+```cpp
+any_cast<T>(storage);        // returns T
+any_cast<T&>(storage);       // returns T&
+any_cast<const T&>(storage); // returns const T&
+any_cast<T&&>(std::move(storage)); // returns T&&
+```
+#### `woid::Any`
+
+`woid::Any` is a general-purpose type-erased container. The type accepts 7 template parameters so for the sake of sanity preservation we also provide `woid::AnyBuilder`. The defaults are
+```cpp
+using ActualAny = AnyBuilder
+                        ::WithSize<sizeof(void*)>
+                        ::WithAlignment<alignof(void*)>
+                        ::EnableCopy
+                        ::WithNoExceptionGuarantee
+                        ::DisableSafeAnyCast
+                        ::WithCombinedFunPtr
+                        ::WithAllocator<woid::DefaultAllocator>
+                        ::Build;
+static_assert(std::is_same_v<ActualAny, Any<>>);
+```
+
+- `kSize`/`kAlignment` The size and alignment (in bytes) of the internal storage used for the Small Buffer Optimization (SBO).
+- `kCopy` Whether the storage supports the copy-construction and copy-assignment operations. When `Copy::DISABLED` is passed, a move-only object can be stored.
+- `kEg` The level of exception guarantee provided. This drives the way we implement the copy and move assignment. Naturally, the higher guarantee comes with a performance cost.
+    -  `ExceptionGuarantee::NONE` UB is triggered if the stored object's copy/move constructor throws.
+    -  `ExceptionGuarantee::BASIC` If the stored object's copy/move constructor throws, the state of the operands is valid.
+    - `ExceptionGuarantee::STRONG` If the stored object's copy/move constructor throws, the state of the operands before the assignment operation is restored. Also fails the SBO when the stored object is not `nothrow_move_constructible`.
+- `kFunPtr` Defines the way we store pointers to the special member functions of the stored object. With `FunPtr::DEDICATED` we store one function pointer for each (which may be faster) while with `Fun::Ptr::COMBINED` we only store one and do some branching therein (which surely saves space).
+- `kSafeAnyCast` When `DISABLED`, `any_cast` triggers UB if the requested type does not match the type of the stored object. Otherwise `woid::BadAnyCast` is thrown. See the comment above `woid::SafeAnyCast` definition for details.
+- `Alloc` An allocator we request the memory from if SBO fails. *Note*, it is not `std::allocator`.
+
+#### `woid::DynamicStorage`
+
+`woid::DynamicStorage` is a *move-only owning* type-erased container that does not bother with the SBO. Provides strong exception guarantee.
+
+#### `woid::TrivialStorage`
+ `woid::TrivialStorage` is similar to `woid::Any` in that it utilizes SBO (again, configured via `kSize`/`kAlignment` template parameters). Its performance is tuned for the trivial objects. A non-trivial object **can** be stored, but the SBO fails if the object is not trivially movable or trivially destructible. Additionally, if copying is enabled via the `kCopy` parameter, the object must also be trivially copyable to qualify for SBO.
+
 ## Getting it
 
 ```bash
