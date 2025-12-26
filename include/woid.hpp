@@ -373,23 +373,24 @@ template <auto mmStaticMaker,
 
         auto p = const_cast<void*>(std::forward<Self>(self).ptr());
         if constexpr (kIsBig<TnoCvRef>) {
-            if constexpr (kSafeAnyCast == SafeAnyCast::ENABLED) {
-                if (std::forward<Self>(self).mm != &dynamicMM<TnoCvRef>) {
-                    reportBadAnyCast();
-                }
-            }
+            std::forward<Self>(self).template checkCastIfEnabled<dynamicMM<TnoCvRef>>();
             p = *static_cast<void**>(p);
         } else {
-            if constexpr (kSafeAnyCast == SafeAnyCast::ENABLED) {
-                if (std::forward<Self>(self).mm != &staticMM<TnoCvRef>) {
-                    reportBadAnyCast();
-                }
-            }
+            std::forward<Self>(self).template checkCastIfEnabled<staticMM<TnoCvRef>>();
         }
         return star<T, Self>(p);
     }
 
   private:
+    template <auto& MM, typename Self>
+    void checkCastIfEnabled(this Self&& self) {
+        if constexpr (kSafeAnyCast == SafeAnyCast::ENABLED) {
+            if (std::forward<Self>(self).mm != &MM) {
+                reportBadAnyCast();
+            }
+        }
+    }
+
     alignas(kAlignment) std::array<char, kSize> storage;
     const MemManager* mm;
 

@@ -45,6 +45,13 @@ printArea(Shape{Circle{1.5}});
 printArea(Shape{Square{1.5}});
 ```
 
+## Getting it
+
+```bash
+git clone https://github.com/akopich/woid.git
+```
+`woid` is header-only. So just move the only header file the library consists of (`include/woid.hpp`) into your project's include path.
+
 ## Components
 ### Storages
 `Woid` provides a number of storages. What they have in common is the `woid::any_cast` function that can be used to extract the stored value
@@ -86,13 +93,6 @@ static_assert(std::is_same_v<ActualAny, Any<>>);
 
 #### `woid::TrivialStorage`
  `woid::TrivialStorage` is similar to `woid::Any` in that it utilizes SBO (again, configured via `kSize`/`kAlignment` template parameters). Its performance is tuned for the trivial objects. A non-trivial object **can** be stored, but the SBO fails if the object is not trivially movable or trivially destructible. Additionally, if copying is enabled via the `kCopy` parameter, the object must also be trivially copyable to qualify for SBO.
-
-## Getting it
-
-```bash
-git clone https://github.com/akopich/woid.git
-```
-`woid` is header-only. So just move the only header file the library consists of (`include/woid.hpp`) into your project's include path.
 
 ## Benchmarking
 I promised you performance. To run the benchmarks you would need to pull the libraries we bench against, namely [`boost::te`](https://github.com/boost-ext/te) and [`microsoft/proxy`](https://github.com/microsoft/proxy) with
