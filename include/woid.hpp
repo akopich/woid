@@ -488,7 +488,7 @@ struct OneChunkAllocator {
 template <typename Storage, typename R, typename... Args>
 class FunBase {
   protected:
-    using FunPtr = R (*)(Storage&, Args&&...);
+    using FunPtr = R (*)(Storage&, Args...);
     std::remove_cv_t<Storage> storage;
     FunPtr funPtr;
 
@@ -496,7 +496,7 @@ class FunBase {
     template <typename F>
     explicit FunBase(F&& f)
         requires(!std::is_same_v<std::remove_cvref_t<F>, FunBase>)
-          : storage(std::forward<F>(f)), funPtr{+[](Storage& storage, Args&&... args) {
+          : storage(std::forward<F>(f)), funPtr{+[](Storage& storage, Args... args) {
                 using FnoCv = std::remove_cvref_t<F>;
                 static constexpr bool IsConst = std::is_const_v<Storage>;
                 using FRef = std::conditional_t<IsConst, const FnoCv&, FnoCv&>;
