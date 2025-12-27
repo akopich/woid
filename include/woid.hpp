@@ -495,6 +495,7 @@ class FunBase {
   public:
     template <typename F>
     explicit FunBase(F&& f)
+        requires(!std::is_same_v<std::remove_cvref_t<F>, FunBase>)
           : storage(std::forward<F>(f)), funPtr{+[](Storage& storage, Args&&... args) {
                 using FnoCv = std::remove_cvref_t<F>;
                 static constexpr bool IsConst = std::is_const_v<Storage>;

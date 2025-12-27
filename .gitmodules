@@ -4,3 +4,6 @@
 [submodule "third_party/proxy"]
 	path = third_party/proxy
 	url = https://github.com/microsoft/proxy
+[submodule "third_party/fu2"]
+	path = third_party/fu2
+	url = https://github.com/Naios/function2

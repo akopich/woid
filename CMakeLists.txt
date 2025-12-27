@@ -11,6 +11,11 @@ target_include_directories(proxy INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/proxy/include"
 )
 
+add_library(function2 INTERFACE)
+target_include_directories(function2 INTERFACE
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fu2/include"
+)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -83,7 +88,7 @@ add_executable(CopyBench bench/copy_bench.cpp)
 target_link_libraries(CopyBench benchmark::benchmark)
 
 add_executable(FunBench bench/fun_bench.cpp)
-target_link_libraries(FunBench benchmark::benchmark)
+target_link_libraries(FunBench benchmark::benchmark function2)
 
 add_executable(InterfaceBench bench/interface_bench.cpp)
 target_link_libraries(InterfaceBench benchmark::benchmark te proxy)
