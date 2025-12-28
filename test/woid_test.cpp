@@ -430,7 +430,8 @@ TYPED_TEST(StorageType, canCallOverloaded) {
     using Storage = TypeParam;
     auto add2 = [](int x, int y) { return x + y; };
     auto add4 = [](int v, int&& x, int& y, const int& z) { return v + x + y + z; };
-    const Fun<Storage, int(int, int) const, int(int, int&&, int&, const int&) const> f{add2, add4};
+    const Fun<Storage, int(int, int) const, int(int, int&&, int&, const int&) const> f{
+        Overloads{add2, add4}};
     ASSERT_EQ(f(2, 5), add2(2, 5));
     const int z = 7;
     int y = 5;
@@ -441,11 +442,22 @@ TYPED_TEST(StorageType, canCallOverloaded) {
 }
 
 TEST(FunRef, CanCallOverloaded) {
-    auto add2 = [](int x, int y) { return x + y; };
-    auto add3 = [](int x, int y, int z) { return x + y + z; };
-    const FunRef<int(int, int) const, int(int, int, int) const> f{&add2, &add3};
+    constexpr auto add2 = [](int x, int y) { return x + y; };
+    constexpr auto add3 = [](int x, int y, int z) { return x + y + z; };
+    constexpr auto add23const = Overloads{add2, add3};
+
+    const FunRef<int(int, int) const, int(int, int, int) const> fConst{&add23const};
+    ASSERT_EQ(fConst(2, 5), add2(2, 5));
+    ASSERT_EQ(fConst(2, 5, 7), add3(2, 5, 7));
+
+    auto add23 = Overloads{add2, add3};
+    FunRef<int(int, int), int(int, int, int)> f{&add23};
     ASSERT_EQ(f(2, 5), add2(2, 5));
     ASSERT_EQ(f(2, 5, 7), add3(2, 5, 7));
+
+    FunRef<int(int, int), int(int, int, int) const> fHalfConst{&add23};
+    ASSERT_EQ(fHalfConst(2, 5), add2(2, 5));
+    ASSERT_EQ(std::as_const(fHalfConst)(2, 5, 7), add3(2, 5, 7));
 }
 
 TYPED_TEST(MoveStorageTypes, canCallConstMoveOnlyFunction) {

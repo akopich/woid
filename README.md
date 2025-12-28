@@ -97,7 +97,7 @@ static_assert(std::is_same_v<ActualAny, Any<>>);
 These two are *non-owning* containers essentially being wrappers over `void*` and `const void*` respectively.
 
 ## Benchmarking
-I promised you performance. To run the benchmarks you would need to pull the libraries we bench against, namely [`boost::te`](https://github.com/boost-ext/te) and [`microsoft/proxy`](https://github.com/microsoft/proxy) with
+I promised you performance. To run the benchmarks you would need to pull the libraries we bench against, namely [`function2`](https://github.com/Naios/function2), [`boost::te`](https://github.com/boost-ext/te) and [`microsoft/proxy`](https://github.com/microsoft/proxy) with
 ```bash
 git submodule update --init --recursive
 ```
@@ -127,7 +127,7 @@ The benchmark targets:
 | :--- | :--- | :--- | :--- |
 | **MoveOnlyBench** | `woid::Any`, `TrivialStorage` | `std::any` | Compares `woid::Any` and `woid::TrivialStorage` vs `std::any` in a move-intensive workflow, namely array sorting |
 | **CopyBench** | `woid::Any`, `TrivialStorage` | `std::any` | Same as above but we force the copy instead of moves. |
-| **FunBench** | `woid::Fun` | `std::function`<br> plain lambda | Passing callables to `std::sort` |
+| **FunBench** | `woid::Fun` | `std::function`<br>`function2`<br> plain lambda | Passing callables to `std::sort` |
 | **InterfaceBench** | `woid::InterfaceBuilder` | `virtual` functions <br>  [`boost::te`](https://github.com/boost-ext/te) <br> [`microsoft/proxy`](https://github.com/microsoft/proxy) | Storing polymorphic objects in a `std::vector`, calling `std::sort` and `std::min_element` |
 
 

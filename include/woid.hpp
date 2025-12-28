@@ -485,18 +485,18 @@ struct OneChunkAllocator {
     inline static Arena arena{};
 };
 
-template <typename Storage, typename R, typename... Args>
+template <typename Storage_, typename R, typename... Args>
 class FunBase {
   protected:
-    using FunPtr = R (*)(Storage&, Args...);
-    std::remove_cv_t<Storage> storage;
+    using FunPtr = R (*)(Storage_&, Args...);
     FunPtr funPtr;
 
   public:
+    using Storage = Storage_;
     template <typename F>
-    explicit FunBase(F&& f)
+    explicit FunBase(F&&)
         requires(!std::is_same_v<std::remove_cvref_t<F>, FunBase>)
-          : storage(std::forward<F>(f)), funPtr{+[](Storage& storage, Args... args) {
+          : funPtr{+[](Storage& storage, Args... args) {
                 using FnoCv = std::remove_cvref_t<F>;
                 static constexpr bool IsConst = std::is_const_v<Storage>;
                 using FRef = std::conditional_t<IsConst, const FnoCv&, FnoCv&>;
@@ -506,21 +506,31 @@ class FunBase {
 
 template <bool IsNoexcept, typename Storage, typename R, typename... Args>
 class ConstFun : public FunBase<const Storage, R, Args...> {
+  protected:
+    static inline constexpr bool kIsConst = true;
+
   public:
     using FunBase<const Storage, R, Args...>::FunBase;
 
-    decltype(auto) operator()(Args... args) const noexcept(IsNoexcept) {
-        return std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
+    template <typename Self>
+    decltype(auto) operator()(this const Self& self, Args... args) noexcept(IsNoexcept) {
+        return std::invoke(
+            static_cast<const ConstFun*>(&self)->funPtr, self.storage, std::forward<Args>(args)...);
     }
 };
 
 template <bool IsNoexcept, typename Storage, typename R, typename... Args>
 class NonConstFun : public FunBase<Storage, R, Args...> {
+  protected:
+    static inline constexpr bool kIsConst = false;
+
   public:
     using FunBase<Storage, R, Args...>::FunBase;
 
-    decltype(auto) operator()(Args... args) noexcept(IsNoexcept) {
-        return std::invoke(this->funPtr, this->storage, std::forward<Args>(args)...);
+    template <typename Self>
+    decltype(auto) operator()(this Self& self, Args... args) noexcept(IsNoexcept) {
+        return std::invoke(
+            static_cast<NonConstFun*>(&self)->funPtr, self.storage, std::forward<Args>(args)...);
     }
 };
 
@@ -598,6 +608,11 @@ struct Contains : std::bool_constant<kIsFound<Name, IsConst, Head>
 
 template <FixedString Name, bool IsConst, typename Head>
 struct Contains<Name, IsConst, Head> : std::bool_constant<kIsFound<Name, IsConst, Head>> {};
+
+template <typename X>
+struct Test;
+template <auto X>
+struct TestV;
 
 template <bool Const>
 struct RefImpl {
@@ -1051,16 +1066,25 @@ using AnyBuilder = detail::AnyBuilderImpl<>;
 
 template <typename Storage, typename... Fs>
     requires(sizeof...(Fs) > 0) struct Fun : detail::MonoFun<Storage, Fs>... {
-    template <typename... T>
-    explicit Fun(T&&... t) : detail::MonoFun<Storage, Fs>{std::forward<T>(t)}... {}
+    std::remove_cv_t<Storage> storage;
+
+    template <typename T>
+    explicit Fun(T&& t)
+          : detail::MonoFun<Storage, Fs>{std::forward<T>(t)}..., storage{std::forward<T>(t)} {}
 
     using detail::MonoFun<Storage, Fs>::operator()...;
 };
 
 template <typename... Fs>
     requires(sizeof...(Fs) > 0) struct FunRef : detail::MonoFunRef<Fs>... {
-    template <typename... T>
-    explicit FunRef(T*... t) : detail::MonoFunRef<Fs>{t}... {}
+  protected:
+    static inline constexpr bool kIsConst = (detail::MonoFunRef<Fs>::kIsConst && ...);
+
+  public:
+    std::conditional_t<kIsConst, CRef, Ref> storage;
+
+    template <typename T>
+    explicit FunRef(T* t) : detail::MonoFunRef<Fs>{t}..., storage{*t} {}
 
     using detail::MonoFunRef<Fs>::operator()...;
 };
@@ -1136,7 +1160,13 @@ struct InterfaceBuilderImpl {
 
     using Build = Interface<O, Storage_, Ms...>;
 };
+
 } // namespace detail
+
+template <class... Ts>
+struct Overloads : Ts... {
+    using Ts::operator()...;
+};
 
 using InterfaceBuilder = detail::InterfaceBuilderImpl<>;
 
