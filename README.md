@@ -61,7 +61,7 @@ The *owning* storages can be instantiated with a universal reference or the obje
 Circle c{3.15};
 woid::Any<> any{c};
 woid::Any<> sameAny{std::move(c)};
-woid::Any<> identicalAny{std::in_place_type<Circle>, c};
+woid::Any<> identicalAny{std::in_place_type<Circle>, 3.15};
 ```
 
 The *non-owning* storages can be constructed with lvalue-ref
