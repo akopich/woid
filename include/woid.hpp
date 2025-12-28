@@ -92,9 +92,11 @@ struct TypeTag {
 template <typename T>
 inline constexpr TypeTag<T> kTypeTag{};
 
+template <typename T>
+static constexpr inline bool IsConstRef = std::is_const_v<std::remove_reference_t<T>>;
+
 template <typename S, typename T>
-using RetainConstPtr
-    = std::conditional_t<std::is_const_v<std::remove_reference_t<S>>, const T*, T*>;
+using RetainConstPtr = std::conditional_t<IsConstRef<S>, const T*, T*>;
 
 struct MemManagerTwoPtrs {
   protected:
@@ -627,7 +629,7 @@ struct RefImpl {
 
   public:
     template <typename T>
-        requires(Const || !std::is_const_v<T>) explicit RefImpl(T& t) : obj(&t) {}
+        requires(Const || !std::is_const_v<T>) explicit RefImpl(T& t) : obj{&t} {}
 
     template <typename T, typename Self>
     T get(this Self&& self) {
@@ -726,7 +728,7 @@ struct VTable : Ms... {
 
     template <FixedString Name, typename... Args, typename Self>
     constexpr auto* getMethod(this Self&& self) {
-        constexpr bool IsConst = std::is_const_v<std::remove_reference_t<Self>>;
+        constexpr bool IsConst = IsConstRef<Self>;
         using Result = RetainConstPtr<Self, FindBestT<Name, IsConst, Typelist<Args...>, Ms...>>;
         return static_cast<Result>(&self);
     }
@@ -1044,8 +1046,7 @@ struct Free<R_ (T::*)(Args_...) const> {
     using StorageArg = Head<Args>;
     using MethodArgs = Tail<Args>;
     using R = R_;
-    static inline constexpr bool kIsStorageConst
-        = std::is_const_v<std::remove_reference_t<StorageArg>>;
+    static inline constexpr bool kIsStorageConst = IsConstRef<StorageArg>;
     using MethodTypeMaker = MkFunType<R, MethodArgs>;
     using MethodType = std::conditional_t<kIsStorageConst,
                                           typename MethodTypeMaker::ConstType,
