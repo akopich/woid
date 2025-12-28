@@ -54,7 +54,22 @@ git clone https://github.com/akopich/woid.git
 
 ## Components
 ### Storages
-`Woid` provides a number of storages. What they have in common is the `woid::any_cast` function that can be used to extract the stored value
+`Woid` provides a number of storages.
+
+The *owning* storages can be instantiated with a universal reference or the object can be created in-place e.g.
+```cpp
+Circle c{3.15};
+woid::Any<> any{c};
+woid::Any<> sameAny{std::move(c)};
+woid::Any<> identicalAny{std::in_place_type<Circle>, c};
+```
+
+The *non-owning* storages can be constructed with lvalue-ref
+```cpp
+woid::Ref cr{c};
+```
+
+What the storages all have in common is the `woid::any_cast` function that can be used to extract the stored value
 ```cpp
 any_cast<T>(storage);              // returns T
 any_cast<T&>(storage);             // returns T&
