@@ -147,6 +147,47 @@ woid::FunRef<int(int, int) const,
              int(int, int, int) const> f{&add23const};
 ```
 
+### Non-intrusive Interfaces
+Now we get back to the example with the geometric shapes from the start of the README. The functionality is defined using `::Fun` type alias like
+```cpp
+struct Shape : woid::InterfaceBuilder
+           ::Fun<"area", [](const auto& obj) -> double { return obj.area(); } >
+           ::Build {
+    using Self::Self;
+    auto area() const { return call<"area">(); }
+};
+```
+A number of things to note:
+1. The `obj` should be passed as `const` if the method we intend to call is itself `const`.
+2. The return-type of the lambda passed to `::Fun` must be explicit.
+3. Writing wrappers like `area()` for `call<"area">` isn't technically necessary, yet recommended for style.
+4. Names (like `"area"`) do not have to be unique -- the overloaded methods can share it.
+5. We don't exactly have to just call a method -- it could be e.g.
+```cpp
+::Fun<"twiceTheArea", [](const auto& obj) -> double { return 2 * obj.area(); } >
+```
+
+As seen previously, we can simply copy an object into the `Shape` wrapper, but they can be also created in-place (this is what we need `using Self::Self` for)
+```cpp
+Shape circle{std::in_place_type<Circle>, 3.15};
+```
+
+The next configuration point is (unsurprisingly) the `::WithStorage` alias. By default we use `woid::Any<>`. Any storage can be passed here -- be it owning or non-owning. E.g. this way we can create a non-owning interface:
+```cpp
+struct ShapeRef : woid::InterfaceBuilder
+           ::WithStorage<woid::CRef>
+           ::Fun<"area", [](const auto& obj) -> double { return obj.area(); } >
+           ::Build {
+    auto area() const { return call<"area">(); }
+};
+
+constexpr Circle c{3.15};
+ShapeRef circleRef{c};
+std::println("{}", circleRef.area());
+```
+
+Finally, we provide `::WithSharedVTable` and `::WithDedicatedVTable` (defaulting to the latter). This one is similar to `FunPtr::Dedicated/COMBINED`. By default we store the vtable inline in every instance of the Interface, while the `WithSharedVTable` we rather store a pointer to a shared vtable (much like it is with the virtual functions).
+
 ## Benchmarking
 I promised you performance. To run the benchmarks you would need to pull the libraries we bench against, namely [`function2`](https://github.com/Naios/function2), [`boost::te`](https://github.com/boost-ext/te) and [`microsoft/proxy`](https://github.com/microsoft/proxy) with
 ```bash

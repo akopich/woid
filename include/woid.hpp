@@ -1116,6 +1116,7 @@ struct Interface {
   public:
     using Storage = Storage_;
     constexpr static inline auto kVTableOwnership = O;
+    using Self = Interface;
 
     template <detail::FixedString Name, typename... Args, typename Self>
     constexpr inline decltype(auto) call(this Self&& self, Args&&... args) {
