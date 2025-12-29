@@ -164,7 +164,8 @@ A number of things to note:
 4. Names (like `"area"`) do not have to be unique -- the overloaded methods can share it.
 5. We don't exactly have to just call a method -- it could be e.g.
 ```cpp
-::Fun<"twiceTheArea", [](const auto& obj) -> double { return 2 * obj.area(); } >
+::Fun<"areaTimes", [](const auto& obj,
+                      int times) -> double { return times * obj.area(); } >
 ```
 
 As seen previously, we can simply copy an object into the `Shape` wrapper, but they can be also created in-place (this is what we need `using Self::Self` for)
