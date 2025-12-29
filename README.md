@@ -92,6 +92,9 @@ using ActualAny = AnyBuilder
 static_assert(std::is_same_v<ActualAny, Any<>>);
 ```
 
+<details>
+<summary>Parameters explained</summary>
+
 - `kSize`/`kAlignment` The size and alignment (in bytes) of the internal storage used for the Small Buffer Optimization (SBO).
 - `kCopy` Whether the storage supports the copy-construction and copy-assignment operations. When `Copy::DISABLED` is passed, a move-only object can be stored.
 - `kEg` The level of exception guarantee provided. This drives the way we implement the copy and move assignment. Naturally, the higher guarantee comes with a performance cost.
@@ -101,6 +104,7 @@ static_assert(std::is_same_v<ActualAny, Any<>>);
 - `kFunPtr` Defines the way we store pointers to the special member functions of the stored object. With `FunPtr::DEDICATED` we store one function pointer for each (which may be faster) while with `Fun::Ptr::COMBINED` we only store one and do some branching therein (which surely saves space).
 - `kSafeAnyCast` When `DISABLED`, `any_cast` triggers UB if the requested type does not match the type of the stored object. Otherwise `woid::BadAnyCast` is thrown. See the comment above `woid::SafeAnyCast` definition for details.
 - `Alloc` An allocator we request the memory from if SBO fails. *Note*, it is not `std::allocator`.
+</details>
 
 #### `woid::TrivialStorage`
  `woid::TrivialStorage` is another *owning* storage similar to `woid::Any` in that it utilizes SBO (again, configured via `kSize`/`kAlignment` template parameters). Its performance is tuned for the trivial objects. A non-trivial object **can** be stored, but the SBO fails if the object is not trivially movable or trivially destructible. Additionally, if copying is enabled via the `kCopy` parameter, the object must also be trivially copyable to qualify for SBO.
@@ -110,6 +114,38 @@ static_assert(std::is_same_v<ActualAny, Any<>>);
 
 #### `woid::Ref`/`woid::CRef`
 These two are *non-owning* containers essentially being wrappers over `void*` and `const void*` respectively.
+
+### Polymorphic function wrappers
+
+Unlike `std::function` `woid::Fun` and `woid::FunRef`actually respect `const` and even `noexcept`. On top of that, static overloads are supported.
+
+#### `woid::Fun`
+... is an *owning* wrapper. As it needs to actually own the callable, it is parameterized with a `Storage` template parameter. Of course, any owning storage provided by `woid` can be passed. Actually, `std::any` will also work -- all we expect is an `any_cast` ADL-discoverable function.
+```cpp
+constexpr auto add2 = [](int x, int y) { return x + y; };
+constexpr auto add3 = [](int x, int y, int z) { return x + y + z; };
+constexpr auto add23const = woid::Overloads{add2, add3};
+const woid::Fun<woid::Any<>,
+                int(int, int) const,
+                int(int, int, int) const> f{add23const};
+std::println("{}", f(2, 3));
+std::println("{}", f(2, 3, 4));
+```
+Note, we do not provide a separate move-only wrapper (like `std::move_only_function`), as `woid::Fun` is copyable if and only if the `Storage` is.
+```cpp
+auto moveOnly = [noCopy = std::make_unique<int>(0)](int x, int y) { return x + y; };
+using Storage = woid::Any<8, woid::Copy::DISABLED> // won't compile with Copy::ENABLED
+const woid::Fun<Storage,
+                int(int, int) const> fMoveOnly{std::move(moveOnly)};
+std::println("{}", fMoveOnly(2, 3));
+```
+
+#### `woid::FunRef`
+... is a *non-owning* wrapper. Naturally, it doesn't need a `Storage` to be specified, it relies on `woid::CRef`/`Ref` depending on whether the pointer it is constructed with is `const` or not.
+```cpp
+woid::FunRef<int(int, int) const,
+             int(int, int, int) const> f{&add23const};
+```
 
 ## Benchmarking
 I promised you performance. To run the benchmarks you would need to pull the libraries we bench against, namely [`function2`](https://github.com/Naios/function2), [`boost::te`](https://github.com/boost-ext/te) and [`microsoft/proxy`](https://github.com/microsoft/proxy) with
