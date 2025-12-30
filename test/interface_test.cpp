@@ -7,6 +7,7 @@
 #include <boost/hana/fwd/filter.hpp>
 #include <gtest/gtest-typed-test.h>
 #include <gtest/gtest.h>
+#include <variant>
 
 using namespace woid;
 namespace hana = boost::hana;
@@ -27,18 +28,32 @@ struct CC {
     void twice() { cnt *= 4; }
 };
 
+using Variant = std::variant<C, CC>;
+
 // clang-format off
 using InterfaceViaMethods = InterfaceBuilder
-            ::template Method<"set", void(int), []<typename T> { return &T::set; }>
-            ::template Method<"get", size_t(void) const, []<typename T> { return &T::get; }>
-            ::template Method<"inc", void(void), []<typename T> { return &T::inc; }>
-            ::template Method<"twice", void(void), []<typename T> { return &T::twice; }>;
+            ::Method<"set", void(int), []<typename T> { return &T::set; }>
+            ::Method<"get", size_t(void) const, []<typename T> { return &T::get; }>
+            ::Method<"inc", void(void), []<typename T> { return &T::inc; }>
+            ::Method<"twice", void(void), []<typename T> { return &T::twice; }>;
 
 using InterfaceViaFuns = InterfaceBuilder
-            ::template Fun<"set",   [](auto& obj, int i) -> void { obj.set(i); }>
-            ::template Fun<"get",   [](const auto& obj) -> size_t { return obj.get(); }>
-            ::template Fun<"inc",   [](auto& obj) -> void { obj.inc(); }>
-            ::template Fun<"twice", [](auto& obj) -> void { obj.twice();  }>;
+            ::Fun<"set",   [](auto& obj, int i) -> void { obj.set(i); }>
+            ::Fun<"get",   [](const auto& obj) -> size_t { return obj.get(); }>
+            ::Fun<"inc",   [](auto& obj) -> void { obj.inc(); }>
+            ::Fun<"twice", [](auto& obj) -> void { obj.twice();  }>;
+
+struct SealedIncAndTwice : SealedInterfaceBuilder<Variant>
+            ::Fun<"set",   [](auto& obj, int i) -> void { obj.set(i); }>
+            ::Fun<"get",   [](const auto& obj) -> size_t { return obj.get(); }>
+            ::Fun<"inc",   [](auto& obj) -> void { obj.inc(); }>
+            ::Fun<"twice", [](auto& obj) -> void { obj.twice();  }>
+            ::Build {
+    void set(size_t i) { call<"set">(i); }
+    size_t get() const { return call<"get">(); }
+    void inc() { call<"inc">(); }
+    void twice() { call<"twice">(); }
+};
 
 template <typename Interface, VTableOwnership O, typename S>
 struct IncAndTwice
@@ -59,13 +74,15 @@ constexpr auto VTableOwnerships
     = hana::tuple_c<VTableOwnership, VTableOwnership::DEDICATED, VTableOwnership::SHARED>;
 constexpr auto Interfaces = hana::tuple_t<InterfaceViaFuns, InterfaceViaMethods>;
 
-constexpr auto TestCases = hana::transform(
-    hana::cartesian_product(hana::make_tuple(Interfaces, VTableOwnerships, Storages)),
-    hana::fuse([](auto i, auto v, auto s) {
-        return hana::type_c<IncAndTwice<typename decltype(i)::type,
-                                        decltype(v)::value,
-                                        typename decltype(s)::type>>;
-    }));
+constexpr auto TestCases
+    = hana::concat(hana::transform(hana::cartesian_product(
+                                       hana::make_tuple(Interfaces, VTableOwnerships, Storages)),
+                                   hana::fuse([](auto i, auto v, auto s) {
+                                       return hana::type_c<IncAndTwice<typename decltype(i)::type,
+                                                                       decltype(v)::value,
+                                                                       typename decltype(s)::type>>;
+                                   })),
+                   hana::tuple_t<SealedIncAndTwice>);
 
 template <auto HanaTuple>
 using AsTuple = decltype(hana::unpack(HanaTuple, hana::template_<testing::Types>))::type;

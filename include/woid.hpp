@@ -721,10 +721,43 @@ class MethodImpl {
     }
 };
 
+template <FixedString Name_, auto L, typename V, typename F>
+struct SealedMethod;
+
+template <FixedString Name_, auto L, typename V, typename R, typename... Args_>
+struct SealedMethod<Name_, L, V, R(Args_...)> {
+    constexpr static inline auto Name = Name_;
+    constexpr static inline auto IsConst = false;
+    using Args = Typelist<Args_...>;
+
+    decltype(auto) invoke(V& v, Args_... args) {
+        return visit(
+            [&args...](auto& obj) { return std::invoke(L, obj, std::forward<Args_>(args)...); }, v);
+    }
+};
+
+template <FixedString Name_, auto L, typename V, typename R, typename... Args_>
+struct SealedMethod<Name_, L, V, R(Args_...) const> {
+
+    constexpr static inline auto Name = Name_;
+    constexpr static inline auto IsConst = true;
+    using Args = Typelist<Args_...>;
+
+    decltype(auto) invoke(const V& v, Args_... args) const {
+        return visit(
+            [&args...](const auto& obj) {
+                return std::invoke(L, obj, std::forward<Args_>(args)...);
+            },
+            v);
+    }
+};
+
 template <typename Storage, typename... Ms>
 struct VTable : Ms... {
     template <typename T>
     VTable(TypeTag<T>) : Ms{detail::TypeTag<std::remove_cvref_t<T>>{}}... {}
+
+    VTable() : Ms{}... {}
 
     template <FixedString Name, typename... Args, typename Self>
     constexpr auto* getMethod(this Self&& self) {
@@ -1134,6 +1167,33 @@ struct Interface {
           : vtable{detail::TypeTag<T>{}}, storage{tag, std::forward<Args>(args)...} {}
 };
 
+template <typename Variant, typename... Ms>
+struct SealedInterface {
+  private:
+    [[no_unique_address]] detail::VTable<Variant, Ms...> table;
+    Variant v;
+
+  public:
+    using Storage = Variant;
+
+    using Self = SealedInterface;
+
+    template <detail::FixedString Name, typename... Args, typename Self>
+    constexpr inline decltype(auto) call(this Self&& self, Args&&... args) {
+        return self.table.template getMethod<Name, Args&&...>()->invoke(
+            self.v, std::forward<Args&&>(args)...);
+    }
+
+    template <typename T>
+    SealedInterface(T&& t)
+        requires(!std::is_same_v<std::remove_cvref_t<T>, SealedInterface>)
+          : table{}, v{std::forward<T>(t)} {}
+
+    template <typename T, typename... Args>
+    SealedInterface(std::in_place_type_t<T> tag, Args&&... args)
+          : table{}, v{tag, std::forward<Args>(args)...} {}
+};
+
 namespace detail {
 template <VTableOwnership O = VTableOwnership::DEDICATED,
           typename Storage_ = Any<8>,
@@ -1163,6 +1223,19 @@ struct InterfaceBuilderImpl {
     using Build = Interface<O, Storage_, Ms...>;
 };
 
+template <typename Variant, typename... Ms>
+struct SealedInterfaceBuilderImpl {
+  private:
+    template <detail::FixedString Name, auto L>
+    using M = SealedMethod<Name, L, Variant, typename MethodType<L>::Type>;
+
+  public:
+    template <detail::FixedString Name, auto L>
+    using Fun = SealedInterfaceBuilderImpl<Variant, Ms..., M<Name, L>>;
+
+    using Build = SealedInterface<Variant, Ms...>;
+};
+
 } // namespace detail
 
 template <class... Ts>
@@ -1171,5 +1244,8 @@ struct Overloads : Ts... {
 };
 
 using InterfaceBuilder = detail::InterfaceBuilderImpl<>;
+
+template <typename Variant>
+using SealedInterfaceBuilder = detail::SealedInterfaceBuilderImpl<Variant>;
 
 } // namespace woid WOID_SYMBOL_VISIBILITY_FLAG

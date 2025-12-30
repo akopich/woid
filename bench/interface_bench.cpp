@@ -6,6 +6,7 @@
 #include <proxy/proxy.h>
 #include <random>
 #include <type_traits>
+#include <variant>
 
 using namespace woid;
 
@@ -177,6 +178,21 @@ struct WoidShapeSharedDynamic : DynamicShardBase {
     double area() const { return call<"area">(); }
 };
 
+using NonTrivialShape = std::variant<Square<false>, Circle<false>, Rectangle<false>>;
+using TrivialShape = std::variant<Square<true>, Circle<true>, Rectangle<true>>;
+
+// clang-format off
+template <typename V>
+struct WoidSealedShape : woid::SealedInterfaceBuilder<V>
+           ::template Fun<"area", [](const auto& obj) -> double { return obj.area(); } >
+           ::Build {
+    using WoidSealedShape::Self::Self;
+    double area() const { return this->template call<"area">(); }
+};
+// clang-format on
+using WoidTrivialSealedShape = WoidSealedShape<TrivialShape>;
+using WoidNonTrivialSealedShape = WoidSealedShape<NonTrivialShape>;
+
 namespace te = boost::te;
 
 struct BoostTeShape final : te::poly<BoostTeShape, te::sbo_storage<kRectangleSize>> {
@@ -327,6 +343,7 @@ BENCHMARK(instantiateAndMinShapes<VShape>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeDedicated>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeSharedDynamic>)->Apply(setRange);
+BENCHMARK(instantiateAndMinShapes<WoidNonTrivialSealedShape>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<BoostTeShape>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<ProxyShape>)->Apply(setRange);
 
@@ -334,6 +351,7 @@ BENCHMARK(instantiateAndSortShapes<VShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeDedicated>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeSharedDynamic>)->Apply(setRange);
+BENCHMARK(instantiateAndSortShapes<WoidNonTrivialSealedShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<BoostTeShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<ProxyShape>)->Apply(setRange);
 
@@ -351,12 +369,14 @@ BENCHMARK(instantiateAndMinTrivialShapes<WoidTrivialShapeShared>)->Apply(setRang
 BENCHMARK(instantiateAndMinTrivialShapes<WoidTrivialShapeDedicated>)->Apply(setRange);
 BENCHMARK(instantiateAndMinTrivialShapes<WoidShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndMinTrivialShapes<WoidShapeDedicated>)->Apply(setRange);
+BENCHMARK(instantiateAndMinTrivialShapes<WoidTrivialSealedShape>)->Apply(setRange);
 BENCHMARK(instantiateAndMinTrivialShapes<ProxyTrivialShape>)->Apply(setRange);
 
 BENCHMARK(instantiateAndSortTrivialShapes<WoidTrivialShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndSortTrivialShapes<WoidTrivialShapeDedicated>)->Apply(setRange);
 BENCHMARK(instantiateAndSortTrivialShapes<WoidShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndSortTrivialShapes<WoidShapeDedicated>)->Apply(setRange);
+BENCHMARK(instantiateAndSortTrivialShapes<WoidTrivialSealedShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortTrivialShapes<ProxyTrivialShape>)->Apply(setRange);
 
 BENCHMARK_MAIN();
