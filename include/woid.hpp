@@ -611,11 +611,6 @@ struct Contains : std::bool_constant<kIsFound<Name, IsConst, Head>
 template <FixedString Name, bool IsConst, typename Head>
 struct Contains<Name, IsConst, Head> : std::bool_constant<kIsFound<Name, IsConst, Head>> {};
 
-template <typename X>
-struct Test;
-template <auto X>
-struct TestV;
-
 template <bool Const>
 struct RefImpl {
   protected:
