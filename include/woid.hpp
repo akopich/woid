@@ -788,6 +788,38 @@ struct HasVTable {
 template <VTableOwnership O, typename Storage, typename... Ms>
 using HasOrIsVTable = std::
     conditional_t<O == VTableOwnership::SHARED, HasVTable<Storage, Ms...>, VTable<Storage, Ms...>>;
+} // namespace detail
+
+template <size_t kSize = sizeof(void*),
+          Copy kCopy = Copy::ENABLED,
+          ExceptionGuarantee kEg = ExceptionGuarantee::NONE,
+          size_t kAlignment = alignof(void*),
+          FunPtr kFunPtr = FunPtr::COMBINED,
+          SafeAnyCast kSafeAnyCast = SafeAnyCast::DISABLED,
+          typename Alloc = DefaultAllocator>
+struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
+                                 detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
+                                 kSize,
+                                 kAlignment,
+                                 kEg,
+                                 kCopy,
+                                 kSafeAnyCast,
+                                 Alloc> {
+    using detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
+                       detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
+                       kSize,
+                       kAlignment,
+                       kEg,
+                       kCopy,
+                       kSafeAnyCast,
+                       Alloc>::Woid;
+};
+
+namespace detail {
+
+// TODO come up with a more efficient storage
+template <Copy kCopy>
+using HeapStorage = woid::Any<sizeof(void*), kCopy, ExceptionGuarantee::STRONG>;
 
 } // namespace detail
 
@@ -842,12 +874,13 @@ class DynamicStorage {
     }
 };
 
-template <size_t Size = sizeof(void*),
+template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
           Copy kCopy = Copy::ENABLED,
-          size_t Alignment = alignof(void*)>
-    requires(Size >= sizeof(void*) && Alignment >= alignof(void*)) class TrivialStorage {
+          size_t Alignment = alignof(detail::HeapStorage<Copy::ENABLED>),
+          typename HS = detail::HeapStorage<kCopy>>
+    requires(Size >= sizeof(HS) && Alignment >= alignof(HS)) class TrivialStorage {
   private:
-    uint32_t heapSize;
+    bool isOnHeap;
     alignas(Alignment) std::array<char, Size> storage;
 
     static constexpr bool kIsMoveOnly = kCopy == Copy::DISABLED;
@@ -871,15 +904,10 @@ template <size_t Size = sizeof(void*),
 
     template <typename T, typename... Args, typename TnoRef = std::remove_cvref_t<T>>
     TrivialStorage(std::in_place_type_t<T>, Args&&... args) {
+        isOnHeap = kOnHeap<TnoRef>;
         if constexpr (kOnHeap<TnoRef>) {
-            constexpr size_t allocSize = (sizeof(TnoRef) + Alignment - 1) & ~(Alignment - 1);
-            static_assert(allocSize <= std::numeric_limits<uint32_t>::max());
-            void* p = std::aligned_alloc(Alignment, allocSize);
-            *reinterpret_cast<void**>(&storage) = p;
-            heapSize = allocSize;
-            new (p) TnoRef{std::forward<Args>(args)...};
+            new (&storage) HS{std::in_place_type<TnoRef>, std::forward<Args>(args)...};
         } else {
-            heapSize = 0;
             new (&storage) T{std::forward<Args>(args)...};
         }
     }
@@ -892,15 +920,14 @@ template <size_t Size = sizeof(void*),
 
     TrivialStorage(const TrivialStorage& other)
         requires(!kIsMoveOnly)
-          : heapSize(other.heapSize) {
-        if (heapSize > 0) {
-            char* p = reinterpret_cast<char*>(std::aligned_alloc(Alignment, heapSize));
-            *reinterpret_cast<void**>(&storage) = p;
-            std::copy_n(*reinterpret_cast<char* const*>(&other.storage), heapSize, p);
+          : isOnHeap(other.isOnHeap) {
+        if (isOnHeap) {
+            new (&storage) HS{other.getHs()};
         } else {
             storage = other.storage;
         }
     }
+
     TrivialStorage& operator=(const TrivialStorage& other)
         requires(!kIsMoveOnly) {
         *this = TrivialStorage(other);
@@ -908,16 +935,25 @@ template <size_t Size = sizeof(void*),
     }
 
     TrivialStorage(TrivialStorage&& other) noexcept
-          : heapSize(other.heapSize), storage(other.storage) {
-        other.heapSize = 0;
+          : isOnHeap(other.isOnHeap), storage(other.storage) {
+        if (isOnHeap) {
+            new (&storage) HS{std::move(other).getHs()};
+            other.isOnHeap = false;
+        } else {
+            this->storage = other.storage;
+        }
     }
 
     TrivialStorage& operator=(TrivialStorage&& other) noexcept {
         if (this != &other) {
             reset();
-            storage = other.storage;
-            heapSize = other.heapSize;
-            other.heapSize = 0;
+            isOnHeap = other.isOnHeap;
+            if (isOnHeap) {
+                new (&storage) HS{std::move(other).getHs()};
+            } else {
+                this->storage = other.storage;
+            }
+            other.isOnHeap = false;
         }
         return *this;
     }
@@ -927,16 +963,21 @@ template <size_t Size = sizeof(void*),
         using TnoRef = std::remove_cvref_t<T>;
         auto p = const_cast<void*>(std::forward<Self>(self).ptr());
         if constexpr (kOnHeap<TnoRef>) {
-            p = *static_cast<void**>(p);
+            return any_cast<T>(std::forward<Self>(self).getHs());
         }
         return detail::star<T, Self>(p);
     }
 
   private:
+    template <typename Self>
+    decltype(auto) getHs(this Self&& self) {
+        return std::forward_like<Self>(
+            *reinterpret_cast<detail::RetainConstPtr<Self, HS>>(&self.storage.front()));
+    }
+
     void reset() {
-        if (heapSize > 0) {
-            std::free(*reinterpret_cast<char**>(&storage.front()));
-            heapSize = false;
+        if (isOnHeap) {
+            getHs().~HS();
         }
     }
 
@@ -956,31 +997,6 @@ struct CRef : detail::RefImpl<true> {
     using detail::RefImpl<true>::RefImpl;
 
     CRef(Ref ref) : detail::RefImpl<true>{ConversionTag{}, ref.obj} {}
-};
-
-template <size_t kSize = sizeof(void*),
-          Copy kCopy = Copy::ENABLED,
-          ExceptionGuarantee kEg = ExceptionGuarantee::NONE,
-          size_t kAlignment = alignof(void*),
-          FunPtr kFunPtr = FunPtr::COMBINED,
-          SafeAnyCast kSafeAnyCast = SafeAnyCast::DISABLED,
-          typename Alloc = DefaultAllocator>
-struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
-                                 detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
-                                 kSize,
-                                 kAlignment,
-                                 kEg,
-                                 kCopy,
-                                 kSafeAnyCast,
-                                 Alloc> {
-    using detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Static,
-                       detail::MemManagerSelector<kCopy, kFunPtr>::Dynamic,
-                       kSize,
-                       kAlignment,
-                       kEg,
-                       kCopy,
-                       kSafeAnyCast,
-                       Alloc>::Woid;
 };
 
 namespace detail {

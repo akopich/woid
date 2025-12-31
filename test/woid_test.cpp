@@ -169,7 +169,8 @@ constexpr auto MoveTestCasesWithBigObject = hana::filter(MoveTestCases, [](auto 
 template <auto HanaTuple>
 using AsTuple = decltype(hana::unpack(HanaTuple, hana::template_<testing::Types>))::type;
 
-constexpr auto AllStorages = hana::concat(MoveOnlyStorageTypes, CopyStorageTypes);
+constexpr auto AllStorages
+    = hana::flatten(hana::make_tuple(MoveOnlyStorageTypes, CopyStorageTypes, TrivialStorageTypes));
 
 template <typename Value>
 struct ValueCntNuller : testing::Test {
