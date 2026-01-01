@@ -901,16 +901,22 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
     inline static constexpr auto kStaticStorageSize = Size;
     inline static constexpr auto kStaticStorageAlignment = Alignment;
     inline static constexpr auto kSafeAnyCast = SafeAnyCast::DISABLED;
+    using Alloc = HS::Alloc;
 
     template <typename T, typename... Args, typename TnoRef = std::remove_cvref_t<T>>
-    TrivialStorage(std::in_place_type_t<T>, Args&&... args) {
-        isOnHeap = kOnHeap<TnoRef>;
+    TrivialStorage(std::in_place_type_t<T>, Args&&... args) : isOnHeap(kOnHeap<TnoRef>) {
         if constexpr (kOnHeap<TnoRef>) {
             new (&storage) HS{std::in_place_type<TnoRef>, std::forward<Args>(args)...};
         } else {
             new (&storage) T{std::forward<Args>(args)...};
         }
     }
+
+    template <typename T>
+    TrivialStorage(TransferOwnership tag, T* tPtr) : isOnHeap(true) {
+        new (&storage) HS{tag, tPtr};
+    }
+
     template <typename T>
         requires(!std::is_same_v<std::remove_cvref_t<T>, TrivialStorage>)
     explicit TrivialStorage(T&& t)
