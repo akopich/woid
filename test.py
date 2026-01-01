@@ -1,6 +1,7 @@
 import os
 import subprocess
 import shutil
+import argparse
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import itertools # Added for Cartesian product
@@ -55,6 +56,8 @@ def build_target(compiler, mode):
     compiler_map = {
         "g++": "gcc",
         "clang++": "clang",
+        "gcc": "gcc",
+        "clang": "clang",
     }
     comp_name = compiler_map.get(compiler, compiler) # Map g++/clang++ to gcc/clang for folder names, falling back to original if unknown.
     build_name = f"{comp_name}_{mode}"
@@ -86,7 +89,8 @@ def build_target(compiler, mode):
         build_cmd = ["cmake", "--build", build_dir, "--", f"-j{NUM_THREADS}"]
         run_command(build_cmd)
 
-        EXPECTED_BINARIES = ["MoveOnlyBench", "CopyBench", "WoidTest", "CrossTuTest", "FunBench", "InterfaceTest"]
+        BINARIES_TO_RUN = ["MoveOnlyTest", "CopyTest", "CrossTuTest", "InterfaceTest", "FunTest"]
+        EXPECTED_BINARIES = BINARIES_TO_RUN + ["CopyBench", "FunBench", "InterfaceBench"]
 
         for binary in EXPECTED_BINARIES:
             if not os.path.exists(os.path.join(build_dir, binary)):
@@ -94,7 +98,6 @@ def build_target(compiler, mode):
             else:
                  print(f"{binary} is built successfully.")
 
-        BINARIES_TO_RUN = ["WoidTest", "CrossTuTest", "InterfaceTest"]
 
         successful_runs = 0
 
@@ -121,6 +124,13 @@ def build_target(compiler, mode):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode")
+    parser.add_argument("--compiler")
+    args = parser.parse_args();
+
+    build_matrix = BUILD_MATRIX if len(sys.argv) == 1 else [[args.compiler, args.mode]]
+
     """Main function to setup and run parallel builds."""
     print(f"Parallel Build Orchestrator, running from current repository root ('.')")
     print("-" * 50)
@@ -130,12 +140,12 @@ def main():
 
     # 2. Run parallel builds
     results = {}
-    print(f"Starting {len(BUILD_MATRIX)} builds in parallel using up to {NUM_THREADS} build threads...")
+    print(f"Starting {len(build_matrix)} builds in parallel using up to {NUM_THREADS} build threads...")
 
     # Using ThreadPoolExecutor to run independent builds concurrently
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {executor.submit(build_target, compiler, mode): (compiler, mode)
-                   for compiler, mode in BUILD_MATRIX}
+                   for compiler, mode in build_matrix}
 
         for future in as_completed(futures):
             target_name, status = future.result()
@@ -152,7 +162,7 @@ def main():
         print(f"{name:<30}: {status}")
 
     print("-" * 50)
-    print(f"Total Builds: {len(BUILD_MATRIX)}")
+    print(f"Total Builds: {len(build_matrix)}")
     print(f"Successful: {len(successful_builds)}")
     print(f"Failed: {len(failed_builds)}")
 

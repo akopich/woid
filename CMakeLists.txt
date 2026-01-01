@@ -52,6 +52,8 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     add_compile_options("-fno-exceptions" "-fno-omit-frame-pointer" "-g" "-O3" "-fno-rtti")
 elseif(CMAKE_BUILD_TYPE STREQUAL "FastBuild")
     add_compile_options( "-O0" "-g0" "-fno-exceptions" "-fno-rtti")
+elseif(CMAKE_BUILD_TYPE STREQUAL "FastBuildWithExceptions")
+    add_compile_options( "-O0" "-g0" "-fno-rtti")
 elseif(CMAKE_BUILD_TYPE STREQUAL "AUBSan")
     add_compile_options("-fno-exceptions" "-g" "-O1"
                         "-fsanitize=address,undefined"
@@ -75,8 +77,14 @@ find_package(GTest REQUIRED)
 
 include_directories(include)
 
-add_executable(WoidTest test/woid_test.cpp)
-target_link_libraries(WoidTest GTest::gtest_main)
+add_executable(CopyTest test/copy_test.cpp)
+target_link_libraries(CopyTest GTest::gtest_main)
+
+add_executable(MoveOnlyTest test/move_only_test.cpp)
+target_link_libraries(MoveOnlyTest GTest::gtest_main)
+
+add_executable(FunTest test/fun_test.cpp)
+target_link_libraries(FunTest GTest::gtest_main)
 
 add_executable(InterfaceTest test/interface_test.cpp)
 target_link_libraries(InterfaceTest GTest::gtest_main)

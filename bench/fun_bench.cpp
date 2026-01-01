@@ -60,7 +60,7 @@ BENCHMARK(benchVectorStdLess<Id<std::less<int>>>)->Apply(setRange);
 BENCHMARK(benchVectorStdLess<Fun<Any<8>, bool(int, int)>>)->Apply(setRange);
 BENCHMARK(benchVectorStdLess<Fun<Any<8>, bool(int, int) const>>)->Apply(setRange);
 BENCHMARK(benchVectorStdLess<Fun<Any<8>, bool(int, int) const noexcept>>)->Apply(setRange);
-BENCHMARK(benchVectorStdLess<Fun<TrivialStorage<8>, bool(int, int) const noexcept>>)
+BENCHMARK(benchVectorStdLess<Fun<TrivialStorage<>, bool(int, int) const noexcept>>)
     ->Apply(setRange);
 BENCHMARK(benchVectorStdLess<
               fu2::function_base<true, true, Fu2SmallCapacity, false, false, bool(int, int) const>>)
