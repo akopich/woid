@@ -1,20 +1,16 @@
-#define BOOST_TEST_MODULE AnyTest
-
 #include "storage_test_setup.hpp"
+
+inline static constexpr auto kMoveTestShard = hana::size_c<4>;
 
 template <typename T>
 struct MoveTestCase : BaseTestCase<T> {};
-TYPED_TEST_SUITE(MoveTestCase, AsTuple<MoveTestCases>);
 
 template <typename T>
 struct MoveTestCaseWithBigObject : testing::Test, AlternativeAllocatorResetter {};
-TYPED_TEST_SUITE(MoveTestCaseWithBigObject, AsTuple<MoveTestCasesWithBigObject>);
 
-template <typename T>
-struct MoveStorageTypes : testing::Test, AlternativeAllocatorResetter {};
-TYPED_TEST_SUITE(MoveStorageTypes, AsTuple<MoveOnlyStorageTypes>);
+TYPED_TEST_SUITE_P(MoveTestCase);
 
-TYPED_TEST(MoveTestCase, canInstantiateFromRefRef) {
+TYPED_TEST_P(MoveTestCase, canInstantiateFromRefRef) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     Value v{kInt};
@@ -22,7 +18,7 @@ TYPED_TEST(MoveTestCase, canInstantiateFromRefRef) {
     ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
 }
 
-TYPED_TEST(MoveTestCase, canInstantiateInPlaceAndMove) {
+TYPED_TEST_P(MoveTestCase, canInstantiateInPlaceAndMove) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     Storage storage(std::in_place_type<Value>, kInt);
@@ -31,7 +27,7 @@ TYPED_TEST(MoveTestCase, canInstantiateInPlaceAndMove) {
     ASSERT_EQ(any_cast<Value&>(otherStorage).i, kInt);
 }
 
-TYPED_TEST(MoveTestCase, canInstantiateAndMove) {
+TYPED_TEST_P(MoveTestCase, canInstantiateAndMove) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     Storage storage(Value{kInt});
@@ -39,7 +35,7 @@ TYPED_TEST(MoveTestCase, canInstantiateAndMove) {
     ASSERT_EQ(any_cast<Value&>(otherStorage).i, kInt);
 }
 
-TYPED_TEST(MoveTestCase, canSelfMoveAssign) {
+TYPED_TEST_P(MoveTestCase, canSelfMoveAssign) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     Storage storage(Value{kInt});
@@ -49,7 +45,7 @@ TYPED_TEST(MoveTestCase, canSelfMoveAssign) {
     ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
 }
 
-TYPED_TEST(MoveTestCase, canMoveAssign) {
+TYPED_TEST_P(MoveTestCase, canMoveAssign) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     Storage storage(Value{kInt});
@@ -58,7 +54,7 @@ TYPED_TEST(MoveTestCase, canMoveAssign) {
     ASSERT_EQ(any_cast<Value&>(otherStorage).i, kInt);
 }
 
-TYPED_TEST(MoveTestCase, canSwap) {
+TYPED_TEST_P(MoveTestCase, canSwap) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     Storage storage(Value{kInt});
@@ -68,7 +64,7 @@ TYPED_TEST(MoveTestCase, canSwap) {
     ASSERT_EQ(any_cast<Value&>(storage).i, 42);
 }
 
-TYPED_TEST(MoveTestCase, canSwapHeterogeneously) {
+TYPED_TEST_P(MoveTestCase, canSwapHeterogeneously) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     Storage storage(Value{kInt});
@@ -83,7 +79,7 @@ TYPED_TEST(MoveTestCase, canSwapHeterogeneously) {
     ASSERT_EQ(any_cast<int>(otherStorage), 42);
 }
 
-TYPED_TEST(MoveTestCase, canGetByRef) {
+TYPED_TEST_P(MoveTestCase, canGetByRef) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     Storage storage(Value{kInt});
@@ -94,7 +90,7 @@ TYPED_TEST(MoveTestCase, canGetByRef) {
     ASSERT_EQ(any_cast<Value&>(storage).i, kInt + 1);
 }
 
-TYPED_TEST(MoveTestCase, canGetByRefRef) {
+TYPED_TEST_P(MoveTestCase, canGetByRefRef) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     Storage storage(Value{kInt});
@@ -102,7 +98,7 @@ TYPED_TEST(MoveTestCase, canGetByRefRef) {
     ASSERT_EQ(value.i, kInt);
 }
 
-TYPED_TEST(MoveTestCase, canMoveAssignToMovedFrom) {
+TYPED_TEST_P(MoveTestCase, canMoveAssignToMovedFrom) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     Storage storage{Value{42}};
@@ -112,13 +108,28 @@ TYPED_TEST(MoveTestCase, canMoveAssignToMovedFrom) {
     ASSERT_EQ(value.i, kInt);
 }
 
-TYPED_TEST(MoveTestCase, canGetConstRef) {
+TYPED_TEST_P(MoveTestCase, canGetConstRef) {
     using Storage = TypeParam::Storage;
     const Storage s{kInt};
     ASSERT_EQ(any_cast<const int&>(s), kInt);
 }
 
-TYPED_TEST(MoveTestCaseWithBigObject, canInstantiateFromPtr) {
+REGISTER_TYPED_TEST_SUITE_P(MoveTestCase,
+                            canInstantiateFromRefRef,
+                            canInstantiateInPlaceAndMove,
+                            canInstantiateAndMove,
+                            canSelfMoveAssign,
+                            canMoveAssign,
+                            canSwap,
+                            canSwapHeterogeneously,
+                            canGetByRef,
+                            canGetByRefRef,
+                            canMoveAssignToMovedFrom,
+                            canGetConstRef);
+
+TYPED_TEST_SUITE_P(MoveTestCaseWithBigObject);
+
+TYPED_TEST_P(MoveTestCaseWithBigObject, canInstantiateFromPtr) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;
     using Alloc = Storage::Alloc;
@@ -126,3 +137,5 @@ TYPED_TEST(MoveTestCaseWithBigObject, canInstantiateFromPtr) {
     Storage storage(kTransferOwnership, ptr);
     ASSERT_EQ(any_cast<Value&>(storage).i, kInt);
 }
+
+REGISTER_TYPED_TEST_SUITE_P(MoveTestCaseWithBigObject, canInstantiateFromPtr);

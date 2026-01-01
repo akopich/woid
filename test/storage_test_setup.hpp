@@ -190,8 +190,28 @@ struct AlternativeAllocatorResetter {
 template <typename T>
 struct BaseTestCase : ValueCntNuller<typename T::Value>, AlternativeAllocatorResetter {};
 
+template <auto T>
+struct TestV;
+
 template <typename T>
 constexpr inline bool IsMovableAndCopyable = std::is_move_constructible_v<T>
                                              && std::is_move_assignable_v<T>
                                              && std::is_copy_constructible_v<T>
                                              && std::is_copy_assignable_v<T>;
+
+template <typename T>
+struct Test;
+
+inline static constexpr auto shard = [](auto sequence, auto i, auto shards) {
+    auto N = hana::size(sequence);
+    auto K = shards;
+
+    auto minSize = N / K;
+    auto remainder = N % K;
+
+    auto start = hana::size_c<(i * minSize) + (i < remainder ? i : remainder)>;
+
+    auto shardSize = minSize + hana::size_c<(i < remainder ? 1 : 0)>;
+
+    return hana::slice(sequence, hana::make_range(start, start + shardSize));
+};

@@ -80,7 +80,8 @@ include_directories(include)
 add_executable(CopyTest test/copy_test.cpp)
 target_link_libraries(CopyTest GTest::gtest_main)
 
-add_executable(MoveOnlyTest test/move_only_test.cpp)
+add_executable(MoveOnlyTest test/move_only_test_0.cpp
+   test/move_only_test_1.cpp test/move_only_test_2.cpp test/move_only_test_3.cpp)
 target_link_libraries(MoveOnlyTest GTest::gtest_main)
 
 add_executable(FunTest test/fun_test.cpp)

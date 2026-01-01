@@ -142,8 +142,8 @@ def main():
     results = {}
     print(f"Starting {len(build_matrix)} builds in parallel using up to {NUM_THREADS} build threads...")
 
-    # Using ThreadPoolExecutor to run independent builds concurrently
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    # Even 64 Gb of ram isn't enough to run at least two threads
+    with ThreadPoolExecutor(max_workers=1) as executor:
         futures = {executor.submit(build_target, compiler, mode): (compiler, mode)
                    for compiler, mode in build_matrix}
 
