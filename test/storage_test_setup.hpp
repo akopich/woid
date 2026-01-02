@@ -154,8 +154,10 @@ constexpr auto TrivialValueTypes = hana::tuple_t<SmallInt, BigInt, NonTrivialInt
 
 constexpr auto CopyTypesCopyStorageTestCases = hana::concat(
     mkTestCases(CopyStorageTypes, CopyTypes), mkTestCases(TrivialStorageTypes, TrivialValueTypes));
-constexpr auto MoveTestCases = hana::flatten(
-    hana::make_tuple(mkTestCases(MoveOnlyStorageTypes, ValueTypes), CopyTypesCopyStorageTestCases));
+constexpr auto MoveTestCases = hana::flatten(hana::make_tuple(
+    mkTestCases(MoveOnlyStorageTypes, ValueTypes),
+    CopyTypesCopyStorageTestCases,
+    mkTestCases(hana::tuple_t<TrivialStorage<16, Copy::DISABLED>>, TrivialValueTypes)));
 constexpr auto CopyTypesTestCases
     = hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCases);
 
