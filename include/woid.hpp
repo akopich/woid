@@ -404,21 +404,43 @@ template <auto mmStaticMaker,
 
 template <typename Alloc>
 struct Deleter {
-  private:
-    using DeletePtr = void (*)(void*);
+  protected:
+    using Ptr = void (*)(void*);
+    Ptr ptr;
+
+    constexpr Deleter() : ptr(nullptr) {}
+    explicit Deleter(Ptr p) : ptr(p) {}
 
   public:
-    constexpr Deleter() : deletePtr(nullptr) {}
-
     template <typename T>
-    explicit Deleter(TypeTag<T>)
-          : deletePtr(+[](void* ptr) static { Alloc::del(static_cast<T*>(ptr)); }) {}
+    explicit Deleter(TypeTag<T>) : ptr{+[](void* p) -> void { Alloc::del(static_cast<T*>(p)); }} {}
 
-    void del(void* p) const { std::invoke(deletePtr, p); }
-
+    void del(void* p) const { ptr(p); }
     void operator()(void* p) const { del(p); }
+};
 
-    DeletePtr deletePtr;
+template <typename Alloc>
+struct DeleterCopier {
+  protected:
+    using Ptr = void* (*)(Op, void*);
+    Ptr ptr;
+
+  public:
+    template <typename T>
+    explicit DeleterCopier(TypeTag<T>)
+          : ptr{+[](Op op, void* p) -> void* {
+                switch (op) {
+                    case Op::DEL:
+                        Alloc::del(static_cast<T*>(p));
+                        return nullptr;
+                    default:
+                        return Alloc::template make<T>(*static_cast<const T*>(p));
+                }
+            }} {}
+
+    void del(void* p) const { ptr(Op::DEL, p); }
+    void operator()(void* p) const { del(p); }
+    void* cpy(void* p) const { return this->ptr(Op::CPY, p); }
 };
 
 template <Copy C, FunPtr F>
@@ -815,23 +837,20 @@ struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Sta
                        Alloc>::Woid;
 };
 
-namespace detail {
-
-// TODO come up with a more efficient storage
-template <Copy kCopy>
-using HeapStorage = woid::Any<sizeof(void*), kCopy, ExceptionGuarantee::STRONG>;
-
-} // namespace detail
-
 template <typename T, typename Storage>
 decltype(auto) any_cast(Storage&& s) {
     return std::forward<Storage>(s).template get<T>();
 }
 
-template <typename Alloc_ = DefaultAllocator>
+template <Copy kCopy = Copy::ENABLED, typename Alloc_ = DefaultAllocator>
 class DynamicStorage {
   private:
-    std::unique_ptr<void, detail::Deleter<Alloc_>> storage;
+    static constexpr bool kIsMoveOnly = kCopy == Copy::DISABLED;
+    using MM
+        = std::conditional_t<kIsMoveOnly, detail::Deleter<Alloc_>, detail::DeleterCopier<Alloc_>>;
+    std::unique_ptr<void, MM> storage;
+
+    auto getDeleter() const { return storage.get_deleter(); }
 
   public:
     inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
@@ -842,17 +861,25 @@ class DynamicStorage {
 
     constexpr DynamicStorage() : storage(nullptr) {}
 
-    DynamicStorage(const DynamicStorage&) = delete;
-    DynamicStorage& operator=(const DynamicStorage&) = delete;
+    DynamicStorage(const DynamicStorage& other)
+        requires(!kIsMoveOnly)
+          : storage{other.getDeleter().cpy(other.storage.get()), other.getDeleter()} {}
+
+    DynamicStorage& operator=(const DynamicStorage& other)
+        requires(!kIsMoveOnly) {
+        *this = DynamicStorage{other};
+        return *this;
+    }
 
     template <typename T, typename TnoRef = std::remove_cvref_t<T>>
-    DynamicStorage(T&& t)
+        requires(!std::is_same_v<std::remove_cvref_t<T>, DynamicStorage>)
+    explicit DynamicStorage(T&& t)
           : storage{Alloc::template make<TnoRef>(std::forward<T>(t)),
-                    detail::Deleter<Alloc_>{detail::kTypeTag<TnoRef>}} {}
+                    MM{detail::kTypeTag<TnoRef>}} {}
 
     template <typename T>
     DynamicStorage(TransferOwnership, T* t)
-          : storage{t, detail::Deleter<Alloc_>{detail::kTypeTag<std::remove_cvref_t<T>>}} {}
+          : storage{t, MM{detail::kTypeTag<std::remove_cvref_t<T>>}} {}
 
     DynamicStorage& operator=(DynamicStorage&& t) noexcept {
         storage = std::move(t.storage);
@@ -863,8 +890,8 @@ class DynamicStorage {
 
     template <typename T, typename... Args>
     DynamicStorage(std::in_place_type_t<T>, Args&&... args)
-          : storage{Alloc::template make<T>(std::forward<Args>(args)...),
-                    detail::Deleter<Alloc_>{detail::kTypeTag<T>}} {}
+          : storage{Alloc::template make<T>(std::forward<Args>(args)...), MM{detail::kTypeTag<T>}} {
+    }
 
     ~DynamicStorage() = default;
 
@@ -873,6 +900,13 @@ class DynamicStorage {
         return detail::star<T, Self>(std::forward<Self>(self).storage.get());
     }
 };
+
+namespace detail {
+
+template <Copy kCopy>
+using HeapStorage = DynamicStorage<kCopy>;
+
+} // namespace detail
 
 template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
           Copy kCopy = Copy::ENABLED,

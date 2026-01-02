@@ -171,7 +171,8 @@ struct WoidTrivialShapeDedicated : DedicatedTrivialBase {
     double area() const { return call<"area">(); }
 };
 
-using DynamicShardBase = Builder::WithSharedVTable::WithStorage<woid::DynamicStorage<>>::Build;
+using DynamicShardBase
+    = Builder::WithSharedVTable::WithStorage<woid::DynamicStorage<woid::Copy::DISABLED>>::Build;
 
 struct WoidShapeSharedDynamic : DynamicShardBase {
     using DynamicShardBase::DynamicShardBase;
