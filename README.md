@@ -110,7 +110,7 @@ static_assert(std::is_same_v<ActualAny, Any<>>);
  `woid::TrivialStorage` is another *owning* storage similar to `woid::Any` in that it utilizes SBO (again, configured via `kSize`/`kAlignment` template parameters). Its performance is tuned for the trivial objects. A non-trivial object **can** be stored, but the SBO fails if the object is not trivially movable or trivially destructible. Additionally, if copying is enabled via the `kCopy` parameter, the object must also be trivially copyable to qualify for SBO.
 
 #### `woid::DynamicStorage`
-`woid::DynamicStorage` is a *move-only owning* type-erased container that does not bother with the SBO. Provides strong exception guarantee.
+`woid::DynamicStorage` is an *owning* type-erased container that does not bother with the SBO. Provides strong exception guarantee, take `kCopy` and `Alloc_` templates parameters.
 
 #### `woid::Ref`/`woid::CRef`
 These two are *non-owning* containers essentially being wrappers over `void*` and `const void*` respectively.
