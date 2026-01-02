@@ -974,8 +974,7 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
         return *this;
     }
 
-    TrivialStorage(TrivialStorage&& other) noexcept
-          : isOnHeap(other.isOnHeap), storage(other.storage) {
+    TrivialStorage(TrivialStorage&& other) noexcept : isOnHeap(other.isOnHeap) {
         if (isOnHeap) {
             new (&storage) HS{std::move(other).getHs()};
             other.isOnHeap = false;
