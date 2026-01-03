@@ -8,6 +8,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <print>
 #include <type_traits>
 #include <utility>
 
@@ -903,8 +904,88 @@ class DynamicStorage {
 
 namespace detail {
 
-template <Copy kCopy>
-using HeapStorage = DynamicStorage<kCopy>;
+template <Copy kCopy = Copy::ENABLED, typename Alloc_ = woid::DefaultAllocator>
+struct HeapStorage {
+  private:
+    static constexpr bool kIsMoveOnly = kCopy == Copy::DISABLED;
+    void* storage;
+    enum Op { DEL, GET, CPY };
+    using Ptr = void* (*)(Op, void*);
+
+  public:
+    using Alloc = Alloc_;
+    inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
+    inline static constexpr auto kStaticStorageSize = 0;
+    inline static constexpr auto kStaticStorageAlignment = 0;
+    inline static constexpr auto kSafeAnyCast = SafeAnyCast::DISABLED;
+
+    template <typename T, typename TnoRef = std::remove_cvref_t<T>>
+        requires(!std::is_same_v<std::remove_cvref_t<T>, HeapStorage>)
+    explicit HeapStorage(T&& t) : HeapStorage{std::in_place_type<TnoRef>, std::forward<T>(t)} {}
+
+    template <typename T, typename... Args>
+    explicit HeapStorage(std::in_place_type_t<T>, Args&&... args) {
+        struct Blk {
+            Ptr ptr;
+            T t;
+            Blk(Ptr ptr, Args&&... args) : ptr(ptr), t{std::forward<Args&&>(args)...} {}
+        };
+        Ptr ptr = +[](Op op, void* ptr) -> void* {
+            Blk* blk = static_cast<Blk*>(ptr);
+            if (op == Op::DEL) {
+                Alloc::del(blk);
+                return nullptr;
+            }
+            if constexpr (!kIsMoveOnly) {
+                if (op == Op::CPY) {
+                    return Alloc::template make<Blk>(*blk);
+                }
+            }
+            return &(blk->t);
+        };
+
+        storage = Alloc::template make<Blk>(ptr, std::forward<Args>(args)...);
+    }
+
+    HeapStorage(HeapStorage&& other) noexcept : storage(other.storage) { other.storage = nullptr; }
+    HeapStorage& operator=(HeapStorage&& other) noexcept {
+        if (this == &other) {
+            return *this;
+        }
+
+        reset();
+        storage = other.storage;
+        other.storage = nullptr;
+        return *this;
+    }
+
+    HeapStorage(const HeapStorage& other)
+        requires(!kIsMoveOnly)
+          : storage{std::invoke(other.ptr(), Op::CPY, other.storage)} {}
+    HeapStorage& operator=(const HeapStorage& other)
+        requires(!kIsMoveOnly) {
+        *this = HeapStorage{other};
+
+        return *this;
+    }
+
+    template <typename T, typename Self>
+    T get(this Self&& self) {
+        auto s = std::forward<Self>(self).storage;
+        auto o = std::invoke(self.ptr(), GET, s);
+        return detail::star<T, Self>(o);
+    }
+
+    ~HeapStorage() { reset(); }
+
+  private:
+    void reset() {
+        if (storage == nullptr)
+            return;
+        std::invoke(ptr(), Op::DEL, storage);
+    }
+    auto ptr() const { return *reinterpret_cast<Ptr*>(storage); }
+};
 
 } // namespace detail
 
@@ -947,8 +1028,9 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
     }
 
     template <typename T>
-    TrivialStorage(TransferOwnership tag, T* tPtr) : isOnHeap(true) {
-        new (&storage) HS{tag, tPtr};
+    TrivialStorage(TransferOwnership, T* tPtr) : isOnHeap(true) {
+        new (&storage) HS{std::move(*tPtr)};
+        delete tPtr;
     }
 
     template <typename T>

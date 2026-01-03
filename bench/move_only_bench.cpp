@@ -138,8 +138,8 @@ BENCHMARK(benchVectorConstructionAndSortInt<
 BENCHMARK(benchVectorConstructionAndSortInt<
               Any<8, Copy::ENABLED, ExceptionGuarantee::BASIC, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionAndSortInt<TrivialStorage<16, Copy::DISABLED>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionAndSortInt<TrivialStorage<16, Copy::ENABLED>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt<TrivialStorage<8, Copy::DISABLED>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt<TrivialStorage<8, Copy::ENABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt<DynamicStorage<Copy::DISABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt<DynamicStorage<Copy::ENABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt<std::any>)->Apply(setRange);
@@ -184,9 +184,8 @@ BENCHMARK(benchVectorConstructionAndSortInt128<
 BENCHMARK(benchVectorConstructionAndSortInt128<
               Any<16, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionAndSortInt128<TrivialStorage<16, Copy::DISABLED>>)
-    ->Apply(setRange);
-BENCHMARK(benchVectorConstructionAndSortInt128<TrivialStorage<16, Copy::ENABLED>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt128<TrivialStorage<8, Copy::DISABLED>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt128<TrivialStorage<8, Copy::ENABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt128<DynamicStorage<Copy::DISABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt128<DynamicStorage<Copy::ENABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt128<std::any>)->Apply(setRange);
@@ -230,8 +229,8 @@ BENCHMARK(benchVectorConstructionThrowInt<
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionThrowInt<DynamicStorage<Copy::DISABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionThrowInt<DynamicStorage<Copy::ENABLED>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<TrivialStorage<16, Copy::DISABLED>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionThrowInt<TrivialStorage<16, Copy::ENABLED>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<TrivialStorage<8, Copy::DISABLED>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionThrowInt<TrivialStorage<8, Copy::ENABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionThrowInt<std::any>)->Apply(setRange);
 
 BENCHMARK_MAIN();
