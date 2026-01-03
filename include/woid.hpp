@@ -999,7 +999,8 @@ struct HeapStorage {
 template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
           Copy kCopy = Copy::ENABLED,
           size_t Alignment = alignof(detail::HeapStorage<Copy::ENABLED>),
-          typename HS = detail::HeapStorage<kCopy>>
+          typename Alloc_ = DefaultAllocator,
+          typename HS = detail::HeapStorage<kCopy, Alloc_>>
     requires(Size >= sizeof(HS) && Alignment >= alignof(HS)) class TrivialStorage {
   private:
     bool isOnHeap;
@@ -1037,7 +1038,7 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
     template <typename T>
     TrivialStorage(TransferOwnership, T* tPtr) : isOnHeap(true) {
         new (&storage) HS{std::move(*tPtr)};
-        delete tPtr;
+        Alloc::del(tPtr);
     }
 
     template <typename T>

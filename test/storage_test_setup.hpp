@@ -100,12 +100,14 @@ constexpr auto MoveOnlyStorageTypes
     = hana::concat(make_instantiations<Copy::DISABLED>(),
                    hana::tuple_t<DynamicStorage<Copy::DISABLED>,
                                  DynamicStorage<Copy::DISABLED, AlternativeAllocator>,
-                                 TrivialStorage<8, Copy::DISABLED>>);
+                                 TrivialStorage<8, Copy::DISABLED>,
+                                 TrivialStorage<8, Copy::DISABLED, 8, AlternativeAllocator>>);
 constexpr auto CopyStorageTypes
     = hana::concat(make_instantiations<Copy::ENABLED>(),
                    hana::tuple_t<DynamicStorage<Copy::ENABLED>,
                                  DynamicStorage<Copy::ENABLED, AlternativeAllocator>,
-                                 TrivialStorage<8, Copy::ENABLED>>);
+                                 TrivialStorage<8, Copy::ENABLED>,
+                                 TrivialStorage<8, Copy::ENABLED, 8, AlternativeAllocator>>);
 
 static_assert(alignof(__int128) > alignof(void*));     // make sure int128 has big alignment
 static_assert(alignof(std::int32_t) < alignof(void*)); // make sure int32 has small alignment
