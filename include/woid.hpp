@@ -909,8 +909,16 @@ struct HeapStorage {
   private:
     static constexpr bool kIsMoveOnly = kCopy == Copy::DISABLED;
     void* storage;
-    enum Op { DEL, GET, CPY };
+    enum Op { DEL, CPY };
     using Ptr = void* (*)(Op, void*);
+
+    template <typename T>
+    struct Blk {
+        Ptr ptr;
+        T t;
+        template <typename... Args>
+        Blk(Ptr ptr, Args&&... args) : ptr(ptr), t{std::forward<Args&&>(args)...} {}
+    };
 
   public:
     using Alloc = Alloc_;
@@ -925,26 +933,21 @@ struct HeapStorage {
 
     template <typename T, typename... Args>
     explicit HeapStorage(std::in_place_type_t<T>, Args&&... args) {
-        struct Blk {
-            Ptr ptr;
-            T t;
-            Blk(Ptr ptr, Args&&... args) : ptr(ptr), t{std::forward<Args&&>(args)...} {}
-        };
         Ptr ptr = +[](Op op, void* ptr) -> void* {
-            Blk* blk = static_cast<Blk*>(ptr);
-            if (op == Op::DEL) {
+            Blk<T>* blk = static_cast<Blk<T>*>(ptr);
+            if constexpr (kIsMoveOnly) {
                 Alloc::del(blk);
                 return nullptr;
-            }
-            if constexpr (!kIsMoveOnly) {
-                if (op == Op::CPY) {
-                    return Alloc::template make<Blk>(*blk);
+            } else {
+                if (op == Op::DEL) {
+                    Alloc::del(blk);
+                    return nullptr;
                 }
+                return Alloc::template make<Blk<T>>(*blk);
             }
-            return &(blk->t);
         };
 
-        storage = Alloc::template make<Blk>(ptr, std::forward<Args>(args)...);
+        storage = Alloc::template make<Blk<T>>(ptr, std::forward<Args>(args)...);
     }
 
     HeapStorage(HeapStorage&& other) noexcept : storage(other.storage) { other.storage = nullptr; }
@@ -971,9 +974,10 @@ struct HeapStorage {
 
     template <typename T, typename Self>
     T get(this Self&& self) {
-        auto s = std::forward<Self>(self).storage;
-        auto o = std::invoke(self.ptr(), GET, s);
-        return detail::star<T, Self>(o);
+        using TnoRef = std::remove_reference_t<T>;
+        auto* b
+            = reinterpret_cast<RetainConstPtr<Self, Blk<TnoRef>>>(std::forward<Self>(self).storage);
+        return std::forward_like<Self>(b->t);
     }
 
     ~HeapStorage() { reset(); }
