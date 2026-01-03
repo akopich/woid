@@ -912,12 +912,15 @@ struct HeapStorage {
     enum Op { DEL, CPY };
     using Ptr = void* (*)(Op, void*);
 
-    template <typename T>
-    struct Blk {
+    struct PtrHolder {
         Ptr ptr;
+    };
+
+    template <typename T>
+    struct Blk : PtrHolder {
         T t;
         template <typename... Args>
-        Blk(Ptr ptr, Args&&... args) : ptr(ptr), t{std::forward<Args&&>(args)...} {}
+        Blk(Ptr ptr, Args&&... args) : PtrHolder{ptr}, t{std::forward<Args&&>(args)...} {}
     };
 
   public:
@@ -988,7 +991,7 @@ struct HeapStorage {
             return;
         std::invoke(ptr(), Op::DEL, storage);
     }
-    auto ptr() const { return *reinterpret_cast<Ptr*>(storage); }
+    auto ptr() const { return reinterpret_cast<const PtrHolder*>(storage)->ptr; }
 };
 
 } // namespace detail
