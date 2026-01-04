@@ -6,9 +6,7 @@
 #include <cstring>
 #include <exception>
 #include <functional>
-#include <limits>
 #include <memory>
-#include <print>
 #include <type_traits>
 #include <utility>
 
@@ -844,7 +842,7 @@ decltype(auto) any_cast(Storage&& s) {
 }
 
 template <Copy kCopy = Copy::ENABLED, typename Alloc_ = DefaultAllocator>
-class DynamicStorage {
+class DynamicAny {
   private:
     static constexpr bool kIsMoveOnly = kCopy == Copy::DISABLED;
     using MM
@@ -860,41 +858,40 @@ class DynamicStorage {
     inline static constexpr auto kSafeAnyCast = SafeAnyCast::DISABLED;
     using Alloc = Alloc_;
 
-    constexpr DynamicStorage() : storage(nullptr) {}
+    constexpr DynamicAny() : storage(nullptr) {}
 
-    DynamicStorage(const DynamicStorage& other)
+    DynamicAny(const DynamicAny& other)
         requires(!kIsMoveOnly)
           : storage{other.getDeleter().cpy(other.storage.get()), other.getDeleter()} {}
 
-    DynamicStorage& operator=(const DynamicStorage& other)
+    DynamicAny& operator=(const DynamicAny& other)
         requires(!kIsMoveOnly) {
-        *this = DynamicStorage{other};
+        *this = DynamicAny{other};
         return *this;
     }
 
     template <typename T, typename TnoRef = std::remove_cvref_t<T>>
-        requires(!std::is_same_v<std::remove_cvref_t<T>, DynamicStorage>)
-    explicit DynamicStorage(T&& t)
+        requires(!std::is_same_v<std::remove_cvref_t<T>, DynamicAny>) explicit DynamicAny(T&& t)
           : storage{Alloc::template make<TnoRef>(std::forward<T>(t)),
                     MM{detail::kTypeTag<TnoRef>}} {}
 
     template <typename T>
-    DynamicStorage(TransferOwnership, T* t)
+    DynamicAny(TransferOwnership, T* t)
           : storage{t, MM{detail::kTypeTag<std::remove_cvref_t<T>>}} {}
 
-    DynamicStorage& operator=(DynamicStorage&& t) noexcept {
+    DynamicAny& operator=(DynamicAny&& t) noexcept {
         storage = std::move(t.storage);
         return *this;
     }
 
-    DynamicStorage(DynamicStorage&& t) : storage(std::move(t.storage)) {}
+    DynamicAny(DynamicAny&& t) : storage(std::move(t.storage)) {}
 
     template <typename T, typename... Args>
-    DynamicStorage(std::in_place_type_t<T>, Args&&... args)
+    DynamicAny(std::in_place_type_t<T>, Args&&... args)
           : storage{Alloc::template make<T>(std::forward<Args>(args)...), MM{detail::kTypeTag<T>}} {
     }
 
-    ~DynamicStorage() = default;
+    ~DynamicAny() = default;
 
     template <typename T, typename Self>
     T get(this Self&& self) {
@@ -1001,7 +998,7 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
           size_t Alignment = alignof(detail::HeapStorage<Copy::ENABLED>),
           typename Alloc_ = DefaultAllocator,
           typename HS = detail::HeapStorage<kCopy, Alloc_>>
-    requires(Size >= sizeof(HS) && Alignment >= alignof(HS)) class TrivialStorage {
+    requires(Size >= sizeof(HS) && Alignment >= alignof(HS)) class TrivialAny {
   private:
     bool isOnHeap;
     alignas(Alignment) std::array<char, Size> storage;
@@ -1027,7 +1024,7 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
     using Alloc = HS::Alloc;
 
     template <typename T, typename... Args, typename TnoRef = std::remove_cvref_t<T>>
-    TrivialStorage(std::in_place_type_t<T>, Args&&... args) : isOnHeap(kOnHeap<TnoRef>) {
+    TrivialAny(std::in_place_type_t<T>, Args&&... args) : isOnHeap(kOnHeap<TnoRef>) {
         if constexpr (kOnHeap<TnoRef>) {
             new (&storage) HS{std::in_place_type<TnoRef>, std::forward<Args>(args)...};
         } else {
@@ -1036,19 +1033,18 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
     }
 
     template <typename T>
-    TrivialStorage(TransferOwnership, T* tPtr) : isOnHeap(true) {
+    TrivialAny(TransferOwnership, T* tPtr) : isOnHeap(true) {
         new (&storage) HS{std::move(*tPtr)};
         Alloc::del(tPtr);
     }
 
     template <typename T>
-        requires(!std::is_same_v<std::remove_cvref_t<T>, TrivialStorage>)
-    explicit TrivialStorage(T&& t)
-          : TrivialStorage(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
+        requires(!std::is_same_v<std::remove_cvref_t<T>, TrivialAny>) explicit TrivialAny(T&& t)
+          : TrivialAny(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
 
-    ~TrivialStorage() { reset(); }
+    ~TrivialAny() { reset(); }
 
-    TrivialStorage(const TrivialStorage& other)
+    TrivialAny(const TrivialAny& other)
         requires(!kIsMoveOnly)
           : isOnHeap(other.isOnHeap) {
         if (isOnHeap) {
@@ -1058,13 +1054,13 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
         }
     }
 
-    TrivialStorage& operator=(const TrivialStorage& other)
+    TrivialAny& operator=(const TrivialAny& other)
         requires(!kIsMoveOnly) {
-        *this = TrivialStorage(other);
+        *this = TrivialAny(other);
         return *this;
     }
 
-    TrivialStorage(TrivialStorage&& other) noexcept : isOnHeap(other.isOnHeap) {
+    TrivialAny(TrivialAny&& other) noexcept : isOnHeap(other.isOnHeap) {
         if (isOnHeap) {
             new (&storage) HS{std::move(other).getHs()};
             other.isOnHeap = false;
@@ -1073,7 +1069,7 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
         }
     }
 
-    TrivialStorage& operator=(TrivialStorage&& other) noexcept {
+    TrivialAny& operator=(TrivialAny&& other) noexcept {
         if (this != &other) {
             reset();
             isOnHeap = other.isOnHeap;

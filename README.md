@@ -106,11 +106,11 @@ static_assert(std::is_same_v<ActualAny, Any<>>);
 - `Alloc` An allocator we request the memory from if SBO fails. *Note*, it is not `std::allocator`.
 </details>
 
-#### `woid::TrivialStorage`
- `woid::TrivialStorage` is another *owning* storage similar to `woid::Any` in that it utilizes SBO (again, configured via `kSize`/`kAlignment` template parameters). Its performance is tuned for the trivial objects. A non-trivial object **can** be stored, but the SBO fails if the object is not trivially movable or trivially destructible. Additionally, if copying is enabled via the `kCopy` parameter, the object must also be trivially copyable to qualify for SBO.
+#### `woid::TrivialAny`
+ `woid::TrivialAny` is another *owning* storage similar to `woid::Any` in that it utilizes SBO (again, configured via `kSize`/`kAlignment` template parameters). Its performance is tuned for the trivial objects. A non-trivial object **can** be stored, but the SBO fails if the object is not trivially movable or trivially destructible. Additionally, if copying is enabled via the `kCopy` parameter, the object must also be trivially copyable to qualify for SBO.
 
-#### `woid::DynamicStorage`
-`woid::DynamicStorage` is an *owning* type-erased container that does not bother with the SBO. Provides strong exception guarantee, take `kCopy` and `Alloc_` templates parameters.
+#### `woid::DynamicAny`
+`woid::DynamicAny` is an *owning* type-erased container that does not bother with the SBO. Provides strong exception guarantee, takes `kCopy` and `Alloc_` templates parameters.
 
 #### `woid::Ref`/`woid::CRef`
 These two are *non-owning* containers essentially being wrappers over `void*` and `const void*` respectively.
@@ -218,8 +218,8 @@ python bench/plot.py --target MoveOnlyBench --reps 1 --seed 10 --mode show
 The benchmark targets:
 | Target | `woid` Component | Comparison Targets | Bench Scenario |
 | :--- | :--- | :--- | :--- |
-| **MoveOnlyBench** | `woid::Any`, `TrivialStorage` | `std::any` | Compares `woid::Any` and `woid::TrivialStorage` vs `std::any` in a move-intensive workflow, namely array sorting |
-| **CopyBench** | `woid::Any`, `TrivialStorage` | `std::any` | Same as above but we force the copy instead of moves. |
+| **MoveOnlyBench** | `woid::Any`, `woid::TrivialAny` | `std::any` | Compares `woid::Any` and `woid::TrivialAny` vs `std::any` in a move-intensive workflow, namely array sorting |
+| **CopyBench** | `woid::Any`, `woid::TrivialAny` | `std::any` | Same as above but we force the copy instead of moves. |
 | **FunBench** | `woid::Fun` | `std::function`<br>`function2`<br> plain lambda | Passing callables to `std::sort` |
 | **InterfaceBench** | `woid::InterfaceBuilder` | `virtual` functions <br>  [`boost::te`](https://github.com/boost-ext/te) <br> [`microsoft/proxy`](https://github.com/microsoft/proxy) | Storing polymorphic objects in a `std::vector`, calling `std::sort` and `std::min_element` |
 

@@ -145,11 +145,10 @@ using SharedBase = Builder::WithSharedVTable::Build;
 
 using DedicatedBase = Builder::WithDedicatedVTable::Build;
 
-using SharedTrivialBase
-    = Builder::WithSharedVTable::WithStorage<TrivialStorage<kRectangleSize>>::Build;
+using SharedTrivialBase = Builder::WithSharedVTable::WithStorage<TrivialAny<kRectangleSize>>::Build;
 
 using DedicatedTrivialBase
-    = Builder::WithDedicatedVTable::WithStorage<TrivialStorage<kRectangleSize>>::Build;
+    = Builder::WithDedicatedVTable::WithStorage<TrivialAny<kRectangleSize>>::Build;
 
 struct WoidShapeShared : SharedBase {
     using SharedBase::SharedBase;
@@ -172,7 +171,7 @@ struct WoidTrivialShapeDedicated : DedicatedTrivialBase {
 };
 
 using DynamicShardBase
-    = Builder::WithSharedVTable::WithStorage<woid::DynamicStorage<woid::Copy::DISABLED>>::Build;
+    = Builder::WithSharedVTable::WithStorage<woid::DynamicAny<woid::Copy::DISABLED>>::Build;
 
 struct WoidShapeSharedDynamic : DynamicShardBase {
     using DynamicShardBase::DynamicShardBase;

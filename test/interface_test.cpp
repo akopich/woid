@@ -70,8 +70,8 @@ struct IncAndTwice
 
 constexpr auto Storages = hana::tuple_t<woid::Any<8, Copy::ENABLED>,
                                         woid::Any<8, Copy::DISABLED>,
-                                        DynamicStorage<Copy::ENABLED>,
-                                        DynamicStorage<Copy::DISABLED>,
+                                        DynamicAny<Copy::ENABLED>,
+                                        DynamicAny<Copy::DISABLED>,
                                         std::any>;
 constexpr auto VTableOwnerships
     = hana::tuple_c<VTableOwnership, VTableOwnership::DEDICATED, VTableOwnership::SHARED>;

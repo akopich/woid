@@ -98,16 +98,16 @@ static constexpr auto make_instantiations() {
 
 constexpr auto MoveOnlyStorageTypes
     = hana::concat(make_instantiations<Copy::DISABLED>(),
-                   hana::tuple_t<DynamicStorage<Copy::DISABLED>,
-                                 DynamicStorage<Copy::DISABLED, AlternativeAllocator>,
-                                 TrivialStorage<8, Copy::DISABLED>,
-                                 TrivialStorage<8, Copy::DISABLED, 8, AlternativeAllocator>>);
+                   hana::tuple_t<DynamicAny<Copy::DISABLED>,
+                                 DynamicAny<Copy::DISABLED, AlternativeAllocator>,
+                                 TrivialAny<8, Copy::DISABLED>,
+                                 TrivialAny<8, Copy::DISABLED, 8, AlternativeAllocator>>);
 constexpr auto CopyStorageTypes
     = hana::concat(make_instantiations<Copy::ENABLED>(),
-                   hana::tuple_t<DynamicStorage<Copy::ENABLED>,
-                                 DynamicStorage<Copy::ENABLED, AlternativeAllocator>,
-                                 TrivialStorage<8, Copy::ENABLED>,
-                                 TrivialStorage<8, Copy::ENABLED, 8, AlternativeAllocator>>);
+                   hana::tuple_t<DynamicAny<Copy::ENABLED>,
+                                 DynamicAny<Copy::ENABLED, AlternativeAllocator>,
+                                 TrivialAny<8, Copy::ENABLED>,
+                                 TrivialAny<8, Copy::ENABLED, 8, AlternativeAllocator>>);
 
 static_assert(alignof(__int128) > alignof(void*));     // make sure int128 has big alignment
 static_assert(alignof(std::int32_t) < alignof(void*)); // make sure int32 has small alignment
@@ -154,7 +154,7 @@ struct BigInt {
 };
 static_assert(std::is_trivially_move_constructible_v<BigInt>);
 
-constexpr auto TrivialStorageTypes = hana::tuple_t<TrivialStorage<>>;
+constexpr auto TrivialStorageTypes = hana::tuple_t<TrivialAny<>>;
 constexpr auto TrivialValueTypes = hana::tuple_t<SmallInt, BigInt, NonTrivialInt>;
 
 constexpr auto CopyTypesCopyStorageTestCases = hana::concat(
@@ -162,7 +162,7 @@ constexpr auto CopyTypesCopyStorageTestCases = hana::concat(
 constexpr auto MoveTestCases = hana::flatten(hana::make_tuple(
     mkTestCases(MoveOnlyStorageTypes, ValueTypes),
     CopyTypesCopyStorageTestCases,
-    mkTestCases(hana::tuple_t<TrivialStorage<16, Copy::DISABLED>>, TrivialValueTypes)));
+    mkTestCases(hana::tuple_t<TrivialAny<16, Copy::DISABLED>>, TrivialValueTypes)));
 constexpr auto CopyTypesTestCases
     = hana::concat(mkTestCases(MoveOnlyStorageTypes, CopyTypes), CopyTypesCopyStorageTestCases);
 
