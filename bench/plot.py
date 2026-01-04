@@ -329,7 +329,7 @@ if __name__ == "__main__":
         if (not show and fig):
             # Create a clean filename
             clean_bench_name = name.replace('<', '_').replace('>', '_')
-            output_filename = f'{clean_bench_name}_speedup.png'
+            output_filename = f'{args.target}_{clean_bench_name}_speedup.svg'
 
             # 2. Save the current figure to a PNG file
             fig.savefig(output_filename, dpi=300)

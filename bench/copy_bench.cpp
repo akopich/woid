@@ -115,7 +115,8 @@ BENCHMARK(benchVectorConstructionAndSortInt128<
 BENCHMARK(benchVectorConstructionAndSortInt128<
               Any<16, Copy::ENABLED, ExceptionGuarantee::NONE, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
-BENCHMARK(benchVectorConstructionAndSortInt128<TrivialAny<>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt128<TrivialAny<8>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt128<TrivialAny<16>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt128<DynamicAny<>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt128<std::any>)->Apply(setRange);
 
@@ -138,6 +139,6 @@ BENCHMARK(benchVectorConstructionAndSortThrowInt<
               Any<8, Copy::ENABLED, ExceptionGuarantee::STRONG, alignof(void*), FunPtr::DEDICATED>>)
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortThrowInt<DynamicAny<>>)->Apply(setRange);
-BENCHMARK(benchVectorConstructionAndSortThrowInt<TrivialAny<>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortThrowInt<TrivialAny<8>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortThrowInt<std::any>)->Apply(setRange);
 BENCHMARK_MAIN();
