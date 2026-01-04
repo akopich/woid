@@ -362,14 +362,6 @@ template <auto mmStaticMaker,
 
     template <typename T, typename Self>
     T get(this Self&& self) {
-        constexpr static bool isConst = std::is_const_v<Self>;
-        constexpr static bool isRef = std::is_lvalue_reference_v<Self> && !isConst;
-        constexpr static bool isConstRef = std::is_lvalue_reference_v<Self> && isConst;
-        constexpr static bool isRefRef = std::is_rvalue_reference_v<Self>;
-        using TnoRef = std::remove_reference_t<T>;
-        static_assert(!isRef || std::is_constructible_v<T, TnoRef&>);
-        static_assert(!isConstRef || std::is_constructible_v<T, const TnoRef&>);
-        static_assert(!isRefRef || std::is_constructible_v<T, TnoRef>);
         using TnoCvRef = std::remove_cvref_t<T>;
 
         auto p = const_cast<void*>(std::forward<Self>(self).ptr());
@@ -838,6 +830,14 @@ struct Any : public detail::Woid<detail::MemManagerSelector<kCopy, kFunPtr>::Sta
 
 template <typename T, typename Storage>
 decltype(auto) any_cast(Storage&& s) {
+    constexpr static bool isConst = std::is_const_v<Storage>;
+    constexpr static bool isRef = std::is_lvalue_reference_v<Storage> && !isConst;
+    constexpr static bool isConstRef = std::is_lvalue_reference_v<Storage> && isConst;
+    constexpr static bool isRefRef = std::is_rvalue_reference_v<Storage>;
+    using TnoRef = std::remove_reference_t<T>;
+    static_assert(!isRef || std::is_constructible_v<T, TnoRef&>);
+    static_assert(!isConstRef || std::is_constructible_v<T, const TnoRef&>);
+    static_assert(!isRefRef || std::is_constructible_v<T, TnoRef>);
     return std::forward<Storage>(s).template get<T>();
 }
 
