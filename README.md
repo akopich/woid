@@ -220,7 +220,7 @@ The benchmark targets:
 | :--- | :--- | :--- | :--- |
 | **MoveOnlyBench** | `woid::Any`, `woid::TrivialAny` | `std::any` | Compares `woid::Any` and `woid::TrivialAny` vs `std::any` in a move-intensive workflow, namely array sorting |
 | **CopyBench** | `woid::Any`, `woid::TrivialAny` | `std::any` | Same as above but we force the copy instead of moves. |
-| **FunBench** | `woid::Fun` | `std::function`<br>`function2`<br> plain lambda | Passing callables to `std::sort` |
+| **FunBench** | `woid::Fun` | `std::function`<br>[`function2`](https://github.com/Naios/function2)<br> plain lambda | Passing callables to `std::sort` |
 | **InterfaceBench** | `woid::InterfaceBuilder` | `virtual` functions <br>  [`boost::te`](https://github.com/boost-ext/te) <br> [`microsoft/proxy`](https://github.com/microsoft/proxy) | Storing polymorphic objects in a `std::vector`, calling `std::sort` and `std::min_element` |
 
 
