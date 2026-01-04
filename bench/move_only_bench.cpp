@@ -177,6 +177,10 @@ BENCHMARK(benchVectorConstructionAndSortInt128<
     ->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt128<TrivialAny<8, Copy::DISABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt128<TrivialAny<8, Copy::ENABLED>>)->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt128<TrivialAny<8, Copy::DISABLED, 8, Allocator>>)
+    ->Apply(setRange);
+BENCHMARK(benchVectorConstructionAndSortInt128<TrivialAny<8, Copy::ENABLED, 8, Allocator>>)
+    ->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt128<TrivialAny<16, Copy::DISABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt128<TrivialAny<16, Copy::ENABLED>>)->Apply(setRange);
 BENCHMARK(benchVectorConstructionAndSortInt128<DynamicAny<Copy::DISABLED>>)->Apply(setRange);
