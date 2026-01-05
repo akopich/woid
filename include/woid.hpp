@@ -14,6 +14,10 @@
     _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wswitch\"")
 #define SUPPRESS_SWITCH_WARNING_END _Pragma("GCC diagnostic pop")
 
+#define SUPPRESS_OFFSETOF_WARNING_START                                                            \
+    _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Winvalid-offsetof\"")
+#define SUPPRESS_OFFSETOF_WARNING_END _Pragma("GCC diagnostic pop")
+
 #ifdef WOID_SYMBOL_VISIBILITY
 #define WOID_SYMBOL_VISIBILITY_FLAG __attribute__((visibility("default")))
 #else
@@ -909,15 +913,12 @@ struct HeapStorage {
     enum Op { DEL, CPY };
     using Ptr = void* (*)(Op, void*);
 
-    struct PtrHolder {
-        Ptr ptr;
-    };
-
     template <typename T>
-    struct Blk : PtrHolder {
+    struct Blk {
+        Ptr ptr;
         T t;
         template <typename... Args>
-        Blk(Ptr ptr, Args&&... args) : PtrHolder{ptr}, t{std::forward<Args&&>(args)...} {}
+        Blk(Ptr ptr, Args&&... args) : ptr{ptr}, t{std::forward<Args&&>(args)...} {}
     };
 
   public:
@@ -933,8 +934,19 @@ struct HeapStorage {
 
     template <typename T, typename... Args>
     explicit HeapStorage(std::in_place_type_t<T>, Args&&... args) {
+        SUPPRESS_OFFSETOF_WARNING_START
+        // This is UB if T is non-standard-layout.
+        // Yet Blk<T> doesn't participate in any inheritance and declares no virtual methods.
+        // IMO it's safe.
+        // Note to me future self willing to fix this: Blk can have an std::array<char, sizeof(T)>
+        // field and manually placement-new the T object therein. This will make Blk
+        // standard-layout.
+        static_assert(offsetof(Blk<T>, ptr) == 0);
+        SUPPRESS_OFFSETOF_WARNING_END
+
         Ptr ptr = +[](Op op, void* ptr) -> void* {
             Blk<T>* blk = static_cast<Blk<T>*>(ptr);
+
             if constexpr (kIsMoveOnly) {
                 Alloc::del(blk);
                 return nullptr;
@@ -964,7 +976,7 @@ struct HeapStorage {
 
     HeapStorage(const HeapStorage& other)
         requires(!kIsMoveOnly)
-          : storage{std::invoke(other.ptr(), Op::CPY, other.storage)} {}
+          : storage{std::invoke(other.funPtr(), Op::CPY, other.storage)} {}
     HeapStorage& operator=(const HeapStorage& other)
         requires(!kIsMoveOnly) {
         *this = HeapStorage{other};
@@ -986,9 +998,9 @@ struct HeapStorage {
     void reset() {
         if (storage == nullptr)
             return;
-        std::invoke(ptr(), Op::DEL, storage);
+        std::invoke(funPtr(), Op::DEL, storage);
     }
-    auto ptr() const { return reinterpret_cast<const PtrHolder*>(storage)->ptr; }
+    auto funPtr() const { return *static_cast<const Ptr*>(storage); }
 };
 
 } // namespace detail
