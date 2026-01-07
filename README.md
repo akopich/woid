@@ -236,4 +236,5 @@ The benchmark targets:
 | **InterfaceBench** | `woid::InterfaceBuilder`<br>`woid::SealedInterfaceBuilder` | `virtual` functions <br>  [`boost::te`](https://github.com/boost-ext/te) <br> [`microsoft/proxy`](https://github.com/microsoft/proxy) | Storing polymorphic objects in a `std::vector`, calling `std::sort` and `std::min_element` |
 
 
-On my hardware (i9-10850K CPU @ 3.60GHz) `woid` *ranks first* in most cases -- see `bench/plots` directory.
+On my hardware (i9-10850K CPU @ 3.60GHz) using Clang 21.1.6 `woid` *ranks first* in most cases -- see [`bench/plots`](./bench/plots) directory for more plots like this one
+![Woid Performance](./bench/plots/InterfaceBench_instantiateAndMinTrivialShapes_speedup.svg)
