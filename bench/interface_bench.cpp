@@ -145,6 +145,10 @@ using SharedBase = Builder::WithSharedVTable::Build;
 
 using DedicatedBase = Builder::WithDedicatedVTable::Build;
 
+using DedicatedExceptionSafeBase = Builder::WithStorage<
+    woid::Any<kRectangleSize, woid::Copy::DISABLED, woid::ExceptionGuarantee::STRONG>>::
+    WithDedicatedVTable::Build;
+
 using SharedTrivialBase = Builder::WithSharedVTable::WithStorage<TrivialAny<kRectangleSize>>::Build;
 
 using DedicatedTrivialBase
@@ -157,6 +161,11 @@ struct WoidShapeShared : SharedBase {
 
 struct WoidShapeDedicated : DedicatedBase {
     using DedicatedBase::DedicatedBase;
+    double area() const { return call<"area">(); }
+};
+
+struct WoidShapeDedicatedExceptionSafe : DedicatedExceptionSafeBase {
+    using DedicatedExceptionSafeBase::DedicatedExceptionSafeBase;
     double area() const { return call<"area">(); }
 };
 
@@ -342,6 +351,7 @@ constexpr auto setRange
 BENCHMARK(instantiateAndMinShapes<VShape>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeDedicated>)->Apply(setRange);
+BENCHMARK(instantiateAndMinShapes<WoidShapeDedicatedExceptionSafe>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidShapeSharedDynamic>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<WoidNonTrivialSealedShape>)->Apply(setRange);
 BENCHMARK(instantiateAndMinShapes<BoostTeShape>)->Apply(setRange);
@@ -350,6 +360,7 @@ BENCHMARK(instantiateAndMinShapes<ProxyShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<VShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeShared>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeDedicated>)->Apply(setRange);
+BENCHMARK(instantiateAndSortShapes<WoidShapeDedicatedExceptionSafe>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidShapeSharedDynamic>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<WoidNonTrivialSealedShape>)->Apply(setRange);
 BENCHMARK(instantiateAndSortShapes<BoostTeShape>)->Apply(setRange);
