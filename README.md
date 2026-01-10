@@ -7,8 +7,12 @@
 ## Key features
 - Value semantics
 - Duck typing
-- Performance
 - Extreme customizability
+- Performance
+
+In this benchmark we instantiate a bunch of geometric shapes and get the min-area. Woid is up to 3x faster than inheritance and virtual functions (`VShape`), up to 3x faster than [`microsoft/proxy`](https://github.com/microsoft/proxy) (`ProxyShape`, it fails SBO for non-trivial types) and up to 2x faster than [`boost::te`](https://github.com/boost-ext/te) (`BoostTeShape`). Woid wins even harder if we assume the set of polymorphic types is _sealed_ (`WoidNonTrivialSealedShape`).
+![Woid Performance](./bench/plots/InterfaceBench_instantiateAndMinShapes_speedup.svg)
+See the [Benchmarking](#benchmarking) section for more details.
 
 ## Components
 
@@ -236,5 +240,4 @@ The benchmark targets:
 | **InterfaceBench** | `woid::InterfaceBuilder`<br>`woid::SealedInterfaceBuilder` | `virtual` functions <br>  [`boost::te`](https://github.com/boost-ext/te) <br> [`microsoft/proxy`](https://github.com/microsoft/proxy) | Storing polymorphic objects in a `std::vector`, calling `std::sort` and `std::min_element` |
 
 
-On my hardware (i9-10850K CPU @ 3.60GHz) using Clang 21.1.6 `woid` *ranks first* in most cases -- see [`bench/plots`](./bench/plots) directory for more plots like this one
-![Woid Performance](./bench/plots/InterfaceBench_instantiateAndMinTrivialShapes_speedup.svg)
+On my hardware (i9-10850K CPU @ 3.60GHz) using Clang 21.1.6 `woid` *ranks first* in most cases -- see [`bench/plots`](./bench/plots) for my results.
