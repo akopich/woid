@@ -312,9 +312,9 @@ static void bench(benchmark::State& state) {
     auto randomDims = makeRandomDoubles(N * 5);
     std::vector<VecElem> shapes;
     shapes.reserve(totalShapes);
-    benchmark::ClobberMemory();
 
     for (auto _ : state) {
+        benchmark::ClobberMemory();
         auto randomIt = randomDims.begin();
         shapes.clear();
 

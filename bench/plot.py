@@ -331,11 +331,10 @@ if __name__ == "__main__":
             clean_bench_name = name.replace('<', '_').replace('>', '_')
             output_filename = f'{args.target}_{clean_bench_name}_speedup.svg'
 
-            # 2. Save the current figure to a PNG file
             fig.savefig(output_filename, dpi=300)
             # Close the figure to free memory
             plt.close(fig)
 
-            print(f"    -> Plot saved successfully to '{output_filename}' (PNG format).")
+            print(f"    -> Plot saved successfully to '{output_filename}' (SVG format).")
     if (show):
         plt.show()
