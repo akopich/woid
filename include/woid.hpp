@@ -1003,17 +1003,31 @@ struct HeapStorage {
     auto funPtr() const { return *static_cast<const Ptr*>(storage); }
 };
 
+struct MaybeOnHeap {
+    bool isOnHeapValue;
+
+    explicit operator bool() const { return isOnHeapValue; }
+};
+
+struct IsNotOnHeap {
+    IsNotOnHeap(bool) {}
+
+    explicit operator bool() const { return false; }
+};
+
 } // namespace detail
 
-template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
+template <size_t kSize = sizeof(detail::HeapStorage<Copy::ENABLED>),
           Copy kCopy = Copy::ENABLED,
-          size_t Alignment = alignof(detail::HeapStorage<Copy::ENABLED>),
+          size_t kAlignment = alignof(detail::HeapStorage<Copy::ENABLED>),
+          bool kCanAllocate = true,
           typename Alloc_ = DefaultAllocator,
           typename HS = detail::HeapStorage<kCopy, Alloc_>>
-    requires(Size >= sizeof(HS) && Alignment >= alignof(HS)) class TrivialAny {
+    requires(kSize >= sizeof(HS) && kAlignment >= alignof(HS)) class TrivialAny {
   private:
-    bool isOnHeap;
-    alignas(Alignment) std::array<char, Size> storage;
+    using IsOnHeap = std::conditional_t<kCanAllocate, detail::MaybeOnHeap, detail::IsNotOnHeap>;
+    [[no_unique_address]] IsOnHeap isOnHeap;
+    alignas(kAlignment) std::array<char, kSize> storage;
 
     static constexpr bool kIsMoveOnly = kCopy == Copy::DISABLED;
 
@@ -1023,19 +1037,20 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
 
     template <typename T>
     constexpr inline static bool kOnHeap
-        = sizeof(T) > Size
-          || alignof(T) > Alignment
+        = sizeof(T) > kSize
+          || alignof(T) > kAlignment
           || !kIsTriviallyRelocatable<T>
           || (!kIsMoveOnly && !std::is_trivially_copy_constructible_v<T>);
 
   public:
     inline static constexpr auto kExceptionGuarantee = ExceptionGuarantee::STRONG;
-    inline static constexpr auto kStaticStorageSize = Size;
-    inline static constexpr auto kStaticStorageAlignment = Alignment;
+    inline static constexpr auto kStaticStorageSize = kSize;
+    inline static constexpr auto kStaticStorageAlignment = kAlignment;
     inline static constexpr auto kSafeAnyCast = SafeAnyCast::DISABLED;
     using Alloc = HS::Alloc;
 
     template <typename T, typename... Args, typename TnoRef = std::remove_cvref_t<T>>
+        requires(kCanAllocate || !kOnHeap<TnoRef>)
     TrivialAny(std::in_place_type_t<T>, Args&&... args) : isOnHeap(kOnHeap<TnoRef>) {
         if constexpr (kOnHeap<TnoRef>) {
             new (&storage) HS{std::in_place_type<TnoRef>, std::forward<Args>(args)...};
@@ -1045,13 +1060,14 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
     }
 
     template <typename T>
-    TrivialAny(TransferOwnership, T* tPtr) : isOnHeap(true) {
+        requires(kCanAllocate) TrivialAny(TransferOwnership, T* tPtr) : isOnHeap(true) {
         new (&storage) HS{std::move(*tPtr)};
         Alloc::del(tPtr);
     }
 
-    template <typename T>
-        requires(!std::is_same_v<std::remove_cvref_t<T>, TrivialAny>) explicit TrivialAny(T&& t)
+    template <typename T, typename TnoRef = std::remove_cvref_t<T>>
+        requires(!std::is_same_v<TnoRef, TrivialAny> && (kCanAllocate || !kOnHeap<TnoRef>))
+    explicit TrivialAny(T&& t)
           : TrivialAny(std::in_place_type<std::remove_cvref_t<T>>, std::forward<T>(t)) {}
 
     ~TrivialAny() { reset(); }
@@ -1075,7 +1091,7 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
     TrivialAny(TrivialAny&& other) noexcept : isOnHeap(other.isOnHeap) {
         if (isOnHeap) {
             new (&storage) HS{std::move(other).getHs()};
-            other.isOnHeap = false;
+            other.isOnHeap = IsOnHeap{false};
         } else {
             this->storage = other.storage;
         }
@@ -1090,7 +1106,7 @@ template <size_t Size = sizeof(detail::HeapStorage<Copy::ENABLED>),
             } else {
                 this->storage = other.storage;
             }
-            other.isOnHeap = false;
+            other.isOnHeap = IsOnHeap{false};
         }
         return *this;
     }
