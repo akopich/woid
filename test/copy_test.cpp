@@ -36,6 +36,23 @@ TEST(AnyBuilder, canBuild) {
     static_assert(std::is_same_v<ActualAny, ExpectedAny>);
 }
 
+TEST(TrivialAnyBuilder, canBuild) {
+    // clang-format off
+    using ActualAny = TrivialAnyBuilder
+                            ::WithSize<256>
+                            ::WithAlignment<64>
+                            ::DisableCopy
+                            ::DisableAllocation
+                            ::WithAllocator<detail::OneChunkAllocator<1234>>
+                            ::Build;
+    // clang-format on
+    using ExpectedTrivialAny
+        = TrivialAny<256, Copy::DISABLED, 64, false, detail::OneChunkAllocator<1234>>;
+
+    static_assert(std::is_same_v<ActualAny, ExpectedTrivialAny>,
+                  "Builder failed to produce the expected TrivialAny type configuration.");
+}
+
 TYPED_TEST(CopyTypesTestCase, canInstantiateFromRef) {
     using Storage = TypeParam::Storage;
     using Value = TypeParam::Value;

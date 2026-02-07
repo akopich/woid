@@ -1140,6 +1140,37 @@ template <size_t kSize = sizeof(detail::HeapStorage<Copy::ENABLED>),
     }
 };
 
+namespace detail {
+
+template <size_t kSize = sizeof(detail::HeapStorage<Copy::ENABLED>),
+          Copy kCopy = Copy::ENABLED,
+          size_t kAlignment = alignof(detail::HeapStorage<Copy::ENABLED>),
+          bool kCanAllocate = true,
+          typename Alloc_ = DefaultAllocator>
+struct TrivialAnyBuilderImpl {
+    using Build = TrivialAny<kSize, kCopy, kAlignment, kCanAllocate, Alloc_>;
+
+    using EnableCopy
+        = TrivialAnyBuilderImpl<kSize, Copy::ENABLED, kAlignment, kCanAllocate, Alloc_>;
+    using DisableCopy
+        = TrivialAnyBuilderImpl<kSize, Copy::DISABLED, kAlignment, kCanAllocate, Alloc_>;
+
+    using EnableAllocation = TrivialAnyBuilderImpl<kSize, kCopy, kAlignment, true, Alloc_>;
+    using DisableAllocation = TrivialAnyBuilderImpl<kSize, kCopy, kAlignment, false, Alloc_>;
+
+    template <size_t S>
+    using WithSize = TrivialAnyBuilderImpl<S, kCopy, kAlignment, kCanAllocate, Alloc_>;
+
+    template <size_t A>
+    using WithAlignment = TrivialAnyBuilderImpl<kSize, kCopy, A, kCanAllocate, Alloc_>;
+
+    template <typename NewAlloc>
+    using WithAllocator = TrivialAnyBuilderImpl<kSize, kCopy, kAlignment, kCanAllocate, NewAlloc>;
+};
+} // namespace detail
+
+using TrivialAnyBuilder = detail::TrivialAnyBuilderImpl<>;
+
 struct Ref : detail::RefImpl<false> {
     using detail::RefImpl<false>::RefImpl;
 
