@@ -647,7 +647,7 @@ struct RefImpl {
     T get(this Self&& self) {
         using TnoRef = std::remove_cvref_t<T>;
         using TP = std::conditional_t<Const, const TnoRef*, TnoRef*>;
-        return *static_cast<TP>(self.obj);
+        return static_cast<T>(*static_cast<TP>(self.obj));
     }
 };
 
@@ -722,12 +722,12 @@ class MethodImpl {
                                    std::forward<Args_>(args)...);
             }} {}
 
-    decltype(auto) invoke(S& s, Args_&&... args)
+    decltype(auto) invoke(S& s, Args_... args)
         requires(!IsConst_) {
         return std::invoke(funPtr, s, std::forward<Args_&&>(args)...);
     }
 
-    decltype(auto) invoke(const S& s, Args_&&... args) const
+    decltype(auto) invoke(const S& s, Args_... args) const
         requires(IsConst_) {
         return std::invoke(funPtr, s, std::forward<Args_&&>(args)...);
     }

@@ -243,4 +243,9 @@ TYPED_TEST(VTableParameterizedTest, propagatesConstRef) {
     int j = 5;
     ASSERT_EQ(g.template call<"addAll">(1, 2, 3, i, std::move(j)), 15);
     ASSERT_EQ(g.template call<"addAllFun">(1, 2, 3, i, std::move(j)), 15);
+    int one = 1;
+    int two = 2;
+    int three = 3;
+    ASSERT_EQ(g.template call<"addAll">(one, two, three, i, std::move(j)), 15);
+    ASSERT_EQ(g.template call<"addAllFun">(one, two, three, i, std::move(j)), 15);
 }

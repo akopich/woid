@@ -185,6 +185,13 @@ TEST(Ref, canConvert) {
     ASSERT_EQ(any_cast<const int&>(cra), a);
 }
 
+TEST(Ref, canMoveFrom) {
+    int a = 1;
+    Ref ra{a};
+
+    ASSERT_EQ(any_cast<int&&>(std::move(ra)), a);
+}
+
 #if defined(__cpp_exceptions)
 
 class Bomb {

@@ -56,6 +56,221 @@ git clone https://github.com/akopich/woid.git
 ```
 `woid` is header-only. So just move the only header file the library consists of (`include/woid.hpp`) into your project's include path.
 
+## More examples
+
+### Using the type-erasing storages
+Before diving into custom non-intrusive interfaces making virtual functions and inheritance obsolete, we will play with the storages first.
+
+#### Non-owning views
+`woid::Ref`/`woid::Cref`  are non-owning, type-erased views.
+
+* `woid::Ref`: Fancier `void*`. It can wrap non-const objects.
+
+* `woid::CRef`: Fancier `const void*`. It can wrap both const and non-const objects but only provides const access.
+
+Say, all we want for now is to print a value of an unknown type.
+```cpp
+enum class DataType { Int, String, Double };
+
+void print(auto w, DataType t) {
+    switch (t) {
+        case DataType::Int:
+            std::println("Int: {}", any_cast<int>(w));
+            break;
+        case DataType::String:
+            // avoiding expensive string copy with a cast to const-ref
+            std::println("String: {}", any_cast<const std::string&>(w));
+            break;
+        case DataType::Double:
+            std::println("Double: {}", any_cast<double>(w));
+            break;
+    }
+}
+
+const int x = 42;
+const std::string y = "woid";
+
+print(woid::CRef{x}, DataType::Int);
+print(woid::CRef{y}, DataType::String);
+```
+
+Note how we templatize over the type of the storage -- `print` works with any storage Woid provides.
+
+To illustrate the difference between the two let's try to move-from
+```cpp
+std::string s = "woid";
+auto cref = woid::CRef{s};
+auto ref = woid::Ref{s};
+// works:
+std::string sMoved = any_cast<std::string&&>(std::move(ref));
+
+// compilation error:
+// std::string sMoved = any_cast<std::string&&>(std::move(cref));
+```
+
+#### General-purpose owning storage `woid::Any`
+The simplest way using it is just sticking to the defaults with e.g.
+```cpp
+Any<> any{std::string{"woid"}};
+std::println("{}", any_cast<std::string&>(any)); // prints "woid"
+```
+To avoid a possible copy we can create the object in-place like
+
+```cpp
+Any<> any{std::in_place_type<std::string>, "woid"};
+std::println("{}", any_cast<std::string&>(any)); // also prints "woid"
+```
+
+`woid::Any` employs SBO, allowing the client code to tailor the size and alignment of the storage. Say, we wish to erase a big and/or overaligned object like
+```cpp
+struct alignas(64) Array64 {
+    std::array<char, 64> data;
+};
+```
+then we can
+```cpp
+using BigEnoughAny = woid::AnyBuilder
+    ::WithSize<sizeof(Array64)>
+    ::WithSize<alignof(Array64)>
+    ::Build;
+Array64 array;
+BigEnoughAny any{std::move(array)};
+```
+and be sure no heap allocations take place.
+
+Naturally,
+```cpp
+std::array<char, 128> arr128;
+BigEnoughAny any{arr128};
+```
+would also work, yet a heap allocation would have to take place.
+
+Another limitation of `std::any` we overcome is its inability to handle move-only types. `woid::Any` can store such objects at the cost of (naturally) disabling the copy-semantics
+```cpp
+using MoveOnlyAny = woid::AnyBuilder
+                        ::DisableCopy
+                        ::Build;
+
+MoveOnlyAny storage{std::make_unique<int>(42)};
+// MoveOnlyAny failure = storage;           // Compilation error: Copy is disabled
+MoveOnlyAny success = std::move(storage);    // OK
+```
+For a comprehensive discussion of all the parameters see [the dedicated section](#woidany).
+
+#### Trivial-optimized storage `woid::TrivialAny`
+But hey! That `Array64` is a fairly simple type -- it's trivial! Can we squeeze more performance if we expect to mostly handle the trivial types? Of course -- use `woid::TrivialAny`
+```cpp
+using BigEnoughTrivialAny = woid::TrivialAnyBuilder
+    ::WithSize<sizeof(Array64)>
+    ::WithSize<alignof(Array64)>
+    ::Build;
+```
+Yet, everything has a price -- the non-trivial types will have to be allocated on a heap even if the SBO storage is large/aligned enough.
+```cpp
+BigEnoughTrivialAny any{std::string{"woid"}}
+```
+Here `any` will only store a pointer to a `std::string` object. Again, the type parameters are discussed [below](#woidtrivialany);
+
+### Non-intrusive polymorphism: Interfaces
+Consider these simple shapes. They don't share a base class, but they share a "contract".
+```cpp
+struct Circle {
+    double radius;
+    double area() const { return std::numbers::pi * radius * radius; }
+    void draw() const { std::println("Circle(r={})", radius); }
+    void scale(double f) { radius *= f; }
+};
+
+struct Square {
+    double side;
+    double area() const { return side * side; }
+    void draw() const { std::println("Square(s={})", side); }
+    void scale(double f) { side *= f; }
+};
+```
+
+We plan to have a lot of circles, a lot of squares (and a lot of other shapes that our sister-team will implement while we're on vacation) and we wish to have a uniform way of invoking the `draw()`. Let's start with a simple `Drawable` interface then.
+
+```cpp
+struct Drawable : woid::InterfaceBuilder
+    ::Fun<"draw", [](const auto& obj) -> void { obj.draw(); }>
+    ::Build
+{
+    using Self::Self; // expose constructors
+    void draw() const { call<"draw">(); }
+};
+
+std::vector<Drawable> objects;
+objects.emplace_back(Circle{2.0});
+objects.emplace_back(std::in_place_type<Square>, 1.5);
+
+for (const auto& obj : objects) obj.draw();
+```
+
+By default `Drawable` is backed by `woid::Any<>`, that is, an owning and copyable container, thus rendering the `Drawable` itself owning and copyable. We can configure an interface to be backed by any type-erasing container we fancy (even `std::any`). E.g. if we wish to support move-only shapes and avoid heap allocations for large objects, we can
+```cpp
+using A = woid::AnyBuilder::WithSize<32>::DisableCopy::Build;
+struct MoveOnlyDrawable : woid::InterfaceBuilder
+    ::WithStorage<A>
+    ::Fun<"draw", [](const auto& obj) -> void { obj.draw(); }>
+    ::Build
+{
+    using Self::Self;
+    void draw() const { call<"draw">(); }
+};
+```
+
+What if our shapes are already instantiated somewhere and we don't wish to copy them around? We can make use of the non-owning containers -- `woid::Ref` and `woid::CRef` like
+
+```cpp
+struct DrawableRef : woid::InterfaceBuilder
+    ::WithStorage<woid::Ref>
+    ::Fun<"draw", [](const auto& obj) -> void { obj.draw(); }>
+    ::Build
+{
+    using Self::Self;
+    void draw() const { call<"draw">(); }
+};
+
+static std::vector<Circle> circle = ... ;
+static std::vector<Square> squares = ... ;
+
+std::vector<DrawableRef> shapes;
+for (auto& s : circle)  shapes.emplace_back(s);
+for (auto& s : squares) shapes.emplace_back(s);
+
+for (const auto& obj : objects) obj.draw();
+```
+
+So far we've handled only a `void` const method. Let's expand the interface to cover all three methods shapes come with.
+```cpp
+struct Shape : woid::InterfaceBuilder
+    ::Fun<"draw",  [](const auto& obj) -> void { obj.draw(); }>
+    ::Fun<"area",  [](const auto& obj) -> double { return obj.area(); }>
+    ::Fun<"scale", [](auto& obj, double factor) -> void { obj.scale(factor); }>
+    ::Build {
+    using Self::Self;
+
+    void draw() const { call<"draw">(); }
+    double area() const { return call<"area">(); }
+    void scale(double factor) { call<"scale">(factor); }
+};
+```
+
+It may so happen, all the shape types are known in advance -- can we leverage this? Thanks to `woid::SealedInterfaceBuilder` the answer is "yes".
+
+```cpp
+using V = std::variant<Circle, Square>;
+struct SealedShape : woid::SealedInterfaceBuilder<V>
+    ::Fun<"draw",  [](const auto& obj) -> void { obj.draw(); }>
+    ...
+    ::Build {
+    ...
+}
+```
+
+Further details on the interface tuning can be found [below](#non-intrusive-interfaces).
+
 ## Components
 ### Storages
 `Woid` provides a number of storages.
@@ -89,7 +304,7 @@ using ActualAny = AnyBuilder
                         ::WithAlignment<alignof(void*)>
                         ::EnableCopy
                         ::WithNoExceptionGuarantee
-                        ::DisableSafeAnyCast
+::DisableSafeAnyCast
                         ::WithCombinedFunPtr
                         ::WithAllocator<woid::DefaultAllocator>
                         ::Build;
@@ -207,18 +422,6 @@ std::println("{}", circleRef.area());
 ```
 
 Finally, we provide `::WithSharedVTable` and `::WithDedicatedVTable` (defaulting to the latter). This one is similar to `FunPtr::Dedicated/COMBINED`. By default we store the vtable inline in every instance of the Interface, while the `WithSharedVTable` we rather store a pointer to a shared vtable (much like it is with the virtual functions).
-
-For the case when all the polymorphic classes are known in advance, `woid::SealedInterfaceBuilder` can be used instead. Naturally, this achieves better performance.
-
-```cpp
-using V = std::variant<Circle, Square>;
-struct SealedShape : woid::SealedInterfaceBuilder<V>
-             ::Fun<"area", [](const auto& obj) -> double { return obj.area(); }>
-             ::Build {
-    auto area() const { return call<"area">(); }
-}
-
-```
 
 ## Benchmarking
 I promised you performance. To run the benchmarks you would need to pull the libraries we bench against, namely [`function2`](https://github.com/Naios/function2), [`boost::te`](https://github.com/boost-ext/te) and [`microsoft/proxy`](https://github.com/microsoft/proxy) with
