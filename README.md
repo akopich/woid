@@ -96,7 +96,7 @@ print(woid::CRef{y}, DataType::String);
 
 Note how we templatize over the type of the storage -- `print` works with any storage Woid provides.
 
-To illustrate the difference between the two let's try to move-from
+To illustrate the difference between `Ref` and `CRef`, let's try to move-from
 ```cpp
 std::string s = "woid";
 auto cref = woid::CRef{s};
@@ -105,13 +105,13 @@ auto ref = woid::Ref{s};
 std::string sMoved = any_cast<std::string&&>(std::move(ref));
 
 // compilation error:
-// std::string sMoved = any_cast<std::string&&>(std::move(cref));
+// std::string failure = any_cast<std::string&&>(std::move(cref));
 ```
 
 #### General-purpose owning storage `woid::Any`
 The simplest way using it is just sticking to the defaults with e.g.
 ```cpp
-Any<> any{std::string{"woid"}};
+woid::Any<> any{std::string{"woid"}};
 std::println("{}", any_cast<std::string&>(any)); // prints "woid"
 ```
 To avoid a possible copy we can create the object in-place like
@@ -131,7 +131,7 @@ then we can
 ```cpp
 using BigEnoughAny = woid::AnyBuilder
     ::WithSize<sizeof(Array64)>
-    ::WithSize<alignof(Array64)>
+    ::WithAlignment<alignof(Array64)>
     ::Build;
 Array64 array;
 BigEnoughAny any{std::move(array)};
@@ -145,14 +145,14 @@ BigEnoughAny any{arr128};
 ```
 would also work, yet a heap allocation would have to take place.
 
-Another limitation of `std::any` we overcome is its inability to handle move-only types. `woid::Any` can store such objects at the cost of (naturally) disabling the copy-semantics
+Another limitation of `std::any` we overcome is its inability to handle move-only types. `woid::Any` can store such objects at the obvious cost of disabling the copy-semantics
 ```cpp
 using MoveOnlyAny = woid::AnyBuilder
                         ::DisableCopy
                         ::Build;
 
 MoveOnlyAny storage{std::make_unique<int>(42)};
-// MoveOnlyAny failure = storage;           // Compilation error: Copy is disabled
+// MoveOnlyAny failure = storage;            // Compilation error: Copy is disabled
 MoveOnlyAny success = std::move(storage);    // OK
 ```
 For a comprehensive discussion of all the parameters see [the dedicated section](#woidany).
@@ -162,7 +162,7 @@ But hey! That `Array64` is a fairly simple type -- it's trivial! Can we squeeze 
 ```cpp
 using BigEnoughTrivialAny = woid::TrivialAnyBuilder
     ::WithSize<sizeof(Array64)>
-    ::WithSize<alignof(Array64)>
+    ::WithAlignment<alignof(Array64)>
     ::Build;
 ```
 Yet, everything has a price -- the non-trivial types will have to be allocated on a heap even if the SBO storage is large/aligned enough.
@@ -189,13 +189,12 @@ struct Square {
 };
 ```
 
-We plan to have a lot of circles, a lot of squares (and a lot of other shapes that our sister-team will implement while we're on vacation) and we wish to have a uniform way of invoking the `draw()`. Let's start with a simple `Drawable` interface then.
+We plan to have a lot of circles, a lot of squares (and a lot of other shapes that our sister-team will implement while we're on vacation) and we wish to have a uniform way of invoking the `draw()` method. Let's start with a simple `Drawable` interface then.
 
 ```cpp
 struct Drawable : woid::InterfaceBuilder
     ::Fun<"draw", [](const auto& obj) -> void { obj.draw(); }>
-    ::Build
-{
+    ::Build {
     using Self::Self; // expose constructors
     void draw() const { call<"draw">(); }
 };
@@ -209,12 +208,14 @@ for (const auto& obj : objects) obj.draw();
 
 By default `Drawable` is backed by `woid::Any<>`, that is, an owning and copyable container, thus rendering the `Drawable` itself owning and copyable. We can configure an interface to be backed by any type-erasing container we fancy (even `std::any`). E.g. if we wish to support move-only shapes and avoid heap allocations for large objects, we can
 ```cpp
-using A = woid::AnyBuilder::WithSize<32>::DisableCopy::Build;
+using A = woid::AnyBuilder
+              ::WithSize<32>
+              ::DisableCopy
+              ::Build;
 struct MoveOnlyDrawable : woid::InterfaceBuilder
     ::WithStorage<A>
     ::Fun<"draw", [](const auto& obj) -> void { obj.draw(); }>
-    ::Build
-{
+    ::Build {
     using Self::Self;
     void draw() const { call<"draw">(); }
 };
@@ -232,17 +233,17 @@ struct DrawableRef : woid::InterfaceBuilder
     void draw() const { call<"draw">(); }
 };
 
-static std::vector<Circle> circle = ... ;
+static std::vector<Circle> circles = ... ;
 static std::vector<Square> squares = ... ;
 
 std::vector<DrawableRef> shapes;
-for (auto& s : circle)  shapes.emplace_back(s);
+for (auto& s : circles) shapes.emplace_back(s);
 for (auto& s : squares) shapes.emplace_back(s);
 
 for (const auto& obj : objects) obj.draw();
 ```
 
-So far we've handled only a `void` const method. Let's expand the interface to cover all three methods shapes come with.
+So far we've handled only a `void` const method. Let's expand the interface to cover all three methods the shapes come with.
 ```cpp
 struct Shape : woid::InterfaceBuilder
     ::Fun<"draw",  [](const auto& obj) -> void { obj.draw(); }>
@@ -257,7 +258,7 @@ struct Shape : woid::InterfaceBuilder
 };
 ```
 
-It may so happen, all the shape types are known in advance -- can we leverage this? Thanks to `woid::SealedInterfaceBuilder` the answer is "yes".
+It may so happen, all the shape types are known in advance -- can we leverage this knowledge to improve performance? Thanks to `woid::SealedInterfaceBuilder` the answer is "yes".
 
 ```cpp
 using V = std::variant<Circle, Square>;
